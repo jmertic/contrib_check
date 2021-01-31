@@ -44,22 +44,16 @@ class Org():
         self.repos = []
 
         if self.org_type == 'github':
-            g = Github(login_or_token=os.environ['GITHUB_TOKEN'], per_page=1000)
             try:
-                gh_repos = g.get_organization(self.org_name).get_repos()
+                gh_repos = self._getGithubReposForOrg()
                 for gh_repo in gh_repos:
-                    if self.ignore_repos and repo in self.ignore_repos:
+                    if self.ignore_repos and gh_repo.name in self.ignore_repos:
                         continue
-                    if self.only_repos and repo not in self.only_repos:
+                    if self.only_repos and gh_repo.name not in self.only_repos:
                         continue
                     if self.skip_archived and gh_repo.archived:
                         continue
-                    self.repos.append(
-                        Repo(
-                            gh_repo.html_url,
-                            dco_signoffs_directories=self.dco_signoffs_directories,
-                        )
-                    )
+                    self.repos.append(Repo(gh_repo.html_url))
             except RateLimitExceededException:
                 print("Sleeping until we get past the API rate limit....")
                 time.sleep(g.rate_limiting_resettime-now())
@@ -72,5 +66,9 @@ class Org():
                 print("Server error - retrying...")
 
         return self.repos
-
     
+    def _getGithubReposForOrg():
+        g = Github(login_or_token=os.environ['GITHUB_TOKEN'], per_page=1000)
+        return g.get_organization(self.org_name).get_repos()
+
+   

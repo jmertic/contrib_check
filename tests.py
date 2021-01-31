@@ -5,6 +5,9 @@
 #
 # encoding=utf8
 
+import os
+import git
+
 import unittest
 from unittest.mock import Mock
 
@@ -79,6 +82,78 @@ class TestCommit(unittest.TestCase):
         ]
         commit.git_commit_object.message = "has no signoff"
         self.assertTrue(commit.checkDCOSignoff(), "Commit message didn't have a signoff, but it has a past DCO signoff so that's ok")
+
+class TestOrg(unittest.TestCase):
+
+    githubOrgRepos = [
+        type("gh_repo",(object,),{
+            "html_url": "https://github.com/testorg/repo1",
+            "name":"repo1",
+            "archived":False
+            }),
+        type("gh_repo",(object,),{
+            "html_url": "https://github.com/testorg/repo2",
+            "name":"repo2",
+            "archived":False
+            }),
+        type("gh_repo",(object,),{
+            "html_url": "https://github.com/testorg/repo3",
+            "name":"repo3",
+            "archived":True
+            }),
+            ]
+
+    def testInitNoLoadRepos(self):
+        org = Org("testorg",load_repos=False)
+
+        self.assertEqual(org.repos,[])
+
+    def testOrgTypeSetGithubNoTokenDefined(self):
+        names_to_remove = {"GITHUB_TOKEN"}
+        modified_environ = {
+            k: v for k, v in os.environ.items() if k not in names_to_remove
+        }
+        with unittest.mock.patch.dict(os.environ, modified_environ, clear=True):
+            self.assertRaisesRegex(Exception,'Github token',Org,'foo')
+
+    @unittest.mock.patch.dict(os.environ,{'GITHUB_TOKEN':'test123'})
+    @unittest.mock.patch.object(git.Repo,'clone_from')
+    def testLoadOrgRepos(self,mock_method):
+        with unittest.mock.patch.object(Org,'_getGithubReposForOrg',return_value=self.githubOrgRepos) as mock:
+            org = Org("testorg")
+       
+            self.assertEqual(org.repos[0].name,"repo1")
+            self.assertEqual(org.repos[1].name,"repo2")
+            self.assertEqual(len(org.repos),2)
+
+    @unittest.mock.patch.dict(os.environ,{'GITHUB_TOKEN':'test123'})
+    @unittest.mock.patch.object(git.Repo,'clone_from')
+    def testLoadOrgReposIgnoreRepo(self,mock_method):
+        with unittest.mock.patch.object(Org,'_getGithubReposForOrg',return_value=self.githubOrgRepos) as mock:
+            org = Org("testorg",ignore_repos=['repo1'])
+       
+            self.assertEqual(org.repos[0].name,"repo2")
+            self.assertEqual(len(org.repos),1)
+            
+    @unittest.mock.patch.dict(os.environ,{'GITHUB_TOKEN':'test123'})
+    @unittest.mock.patch.object(git.Repo,'clone_from')
+    def testLoadOrgReposOnlyRepo(self,mock_method):
+        with unittest.mock.patch.object(Org,'_getGithubReposForOrg',return_value=self.githubOrgRepos) as mock:
+            org = Org("testorg",only_repos=['repo1'])
+       
+            self.assertEqual(org.repos[0].name,"repo1")
+            self.assertEqual(len(org.repos),1)
+    
+    @unittest.mock.patch.dict(os.environ,{'GITHUB_TOKEN':'test123'})
+    @unittest.mock.patch.object(git.Repo,'clone_from')
+    def testLoadOrgReposIncludeArchives(self,mock_method):
+        with unittest.mock.patch.object(Org,'_getGithubReposForOrg',return_value=self.githubOrgRepos) as mock:
+            org = Org("testorg",skip_archived=False)
+       
+            self.assertEqual(org.repos[0].name,"repo1")
+            self.assertEqual(org.repos[1].name,"repo2")
+            self.assertEqual(org.repos[2].name,"repo3")
+            self.assertEqual(len(org.repos),3)
 
 if __name__ == '__main__':
     unittest.main()

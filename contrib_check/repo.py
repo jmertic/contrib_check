@@ -13,6 +13,7 @@ import git
 import tempfile
 import csv
 import re
+import shutil
 
 from .commit import Commit
 
@@ -39,12 +40,12 @@ class Repo():
         os.environ["GIT_LFS_SKIP_SMUDGE"]="1"
         
         # if GitHub, we can find what we need
-        url_search = re.search("https://github.com/(.*)/(.*)/commit/.*",repo_path)
+        url_search = re.search("https://github.com/(.*)/(.*)",repo_path)
         if url_search:
             self.html_url = repo_path
             self.name = url_search.group(2)
-            fo = tempfile.TemporaryDirectory()
-            self.git_repo_object = git.Repo.clone_from(self.html_url,fo.name)
+            self.__fo = tempfile.TemporaryDirectory()
+            self.git_repo_object = git.Repo.clone_from(self.html_url,self.__fo.name)
             self.csv_filename = url_search.group(1)+'-'+self.name+'.csv'
         # local clone    
         elif os.path.isdir(repo_path):
@@ -80,10 +81,14 @@ class Repo():
         if os.path.isfile(csvfile):
             os.remove(csvfile)
         
-        csvfileref = open(csvfile, mode='w') 
-        self.__csv_writer = csv.writer(csvfileref, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
+        self.__csvfileref = open(csvfile, mode='w') 
+        self.__csv_writer = csv.writer(self.__csvfileref, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
         self.__csv_filename = csvfile
     
+    def __del__(self):
+        self.__fo.cleanup()
+        self.__csvfileref.close() 
+
     def writeError(self, commit, error_type):
         self.__csv_writer.writerow([
             self.name,

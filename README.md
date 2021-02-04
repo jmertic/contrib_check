@@ -18,13 +18,17 @@ pip install -r requirements.txt
 ## Usage
 
 ```
-usage: contrib_check.py [-h] [-c CONFIGFILE]
+usage: contrib_check.py [-h] (-c CONFIGFILE | --repo REPO | --org ORG) [--dco DCO]
+
+Scan a single repo or organization for various contribution checks ( such as DCO )
 
 optional arguments:
   -h, --help            show this help message and exit
   -c CONFIGFILE, --config CONFIGFILE
-                        name of YAML config file (defaults to
-                        dco_org_check.yaml)
+                        name of YAML config file
+  --repo REPO           URL or path to the repo to search
+  --org ORG             URL to GitHub org to search
+  --dco DCO             Perform a DCO check (defaults to true)
 ```
 
 ### Config file options ( set argument is the default if not specified )

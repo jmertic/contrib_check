@@ -6,6 +6,16 @@ Checks contributions in a repo or a GitHub org for:
 
 Refactor of previous [dco-org-check](https://github.com/jmertic/dco-org-check) script for extensibility.
 
+The script will produce a CSV file named after the repo with any commits matching a check, and for DCO signoffs will produce a file similar to the below that can be checked into the repository and used for remediation...
+
+```
+I, John Doe hereby sign-off-by all of my past commits to this repo subject to the Developer Certificate of Origin (DCO), Version 1.1. In the past I have used emails: john.doe@foo.com
+
+4f93aecac9b1a64331148cd496d0ee54584a1553 Commit 1
+538c1d602cc6f59e7b600f49889069a4caac7959 Commit 2
+9e57035ef29319fc44a7d167e7896bc144e80b10 Commit 3
+```
+
 ## Installation
 
 ```

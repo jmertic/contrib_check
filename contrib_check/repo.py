@@ -20,7 +20,7 @@ from .commit import Commit
 class Repo():
     name = ''
     html_url = ''
-    past_signoffs = {}
+    past_signoffs = []
     git_repo_object = None
     prior_commits_dir = 'dco-signoffs' 
 
@@ -34,6 +34,8 @@ class Repo():
 
     __csv_filename = 'output.csv'
     __csv_writer = None
+    __fo = None
+    __csvfileref = None
 
     def __init__(self, repo_path):
         # Skip LFS files - we don't need to download them
@@ -49,7 +51,7 @@ class Repo():
             self.csv_filename = url_search.group(1)+'-'+self.name+'.csv'
         # local clone    
         elif os.path.isdir(repo_path):
-            self.name = os.path.basename(os.path.normpath(repo_path))
+            self.name = os.path.basename(os.path.realpath(repo_path))
             self.git_repo_object = git.Repo(repo_path)
             self.csv_filename = self.name+'.csv'
 
@@ -58,9 +60,9 @@ class Repo():
             for entry in self.git_repo_object.head.commit.tree:
                 if entry.type == 'tree' and entry.name in dco_signoffs_directories:
                     for blob in entry.blobs:
-                        with open(blob.abspath(), 'rb') as content_file:
+                        with open(blob.abspath, 'rb') as content_file:
                             content = content_file.read()
-                            self.past_signoffs[blob.path] = content
+                            self.past_signoffs.append(content)
         except ValueError:
             print("...invalid or empty repo - skipping")
             return False
@@ -86,8 +88,10 @@ class Repo():
         self.__csv_filename = csvfile
     
     def __del__(self):
-        self.__fo.cleanup()
-        self.__csvfileref.close() 
+        if self.__fo:
+            self.__fo.cleanup()
+        if self.__csvfileref:
+            self.__csvfileref.close() 
 
     def writeError(self, commit, error_type):
         self.__csv_writer.writerow([

@@ -70,9 +70,7 @@ checks:
     signoff_dirs:
       - dco-signoffs
     # set if you want to have the script create the previous commits signoff files
-    prior-commits:
-      # directory where to store the prior commits files
-      directory: dco-signoffs
+    prior-commits-directory: dco-signoffs
 ```
 
 ## Contributing

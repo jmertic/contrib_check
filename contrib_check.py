@@ -24,7 +24,7 @@ def main():
     group.add_argument("-c", "--config", dest="configfile", type=FileType('r'), help="name of YAML config file")
     group.add_argument("--repo", dest="repo", help="URL or path to the repo to search")
     group.add_argument("--org", dest="org", help="URL to GitHub org to search")
-    parser.add_argument("--dco", dest="dco", help="Perform a DCO check (defaults to true)")
+    parser.add_argument("--dco", dest="dco", help="Perform a DCO check (defaults to true)", default=True)
     args = parser.parse_args()
 
     config = {}
@@ -56,9 +56,11 @@ def main():
 
     for repoObj in repos:
         print("Searching repo {}...".format(repoObj.name))
-        if 'dco' in config and 'prior_commits' in config['dco']:
-            if 'directory' in config['dco']['prior_commits']:
-                repoObj.loadPastSignoffs(config['dco']['prior_commits']['directory'])
+        if 'dco' in config or args.dco:
+            if 'dco' in config and 'prior_commits_directory' in config['dco']:
+                repoObj.prior_commits_dir = config['dco']['prior_commits_directory']
+            if 'dco' in config and 'signoff_dirs' in config['dco']:
+                repoObj.loadPastSignoffs(config['dco']['signoff_dirs'])
             else:
                 repoObj.loadPastSignoffs()
         repoObj.scan()

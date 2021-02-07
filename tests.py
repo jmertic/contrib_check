@@ -45,7 +45,7 @@ class TestCommit(unittest.TestCase):
         commit = Commit(self._mock_commit,self._mock_repo)
         commit.git_commit_object.hexsha = '11ac960e1070eacc2fe92ac9a3d1753400e1fd4b'
         commit.repo_object.past_signoffs = [
-            ['dco-signoffs',"I, personname hereby sign-off-by all of my past commits to this repo subject to the Developer Certificate of Origin (DCO), Version 1.1. In the past I have used emails: [personname@domain.com]\n\n11ac960e1070eacc2fe92ac9a3d1753400e1fd4b This is a commit".encode() ]
+            "I, personname hereby sign-off-by all of my past commits to this repo subject to the Developer Certificate of Origin (DCO), Version 1.1. In the past I have used emails: [personname@domain.com]\n\n11ac960e1070eacc2fe92ac9a3d1753400e1fd4b This is a commit".encode() 
         ]
 
         self.assertTrue(commit.hasDCOPastSignoff(), "Commit message had a past signoff")
@@ -54,7 +54,7 @@ class TestCommit(unittest.TestCase):
         commit = Commit(self._mock_commit,self._mock_repo)
         commit.git_commit_object.hexsha = 'c1d322dfba0ed7a770d74074990ac51a9efedcd0'
         commit.repo_object.past_signoffs = [
-            ['dco-signoffs',"I, personname hereby sign-off-by all of my past commits to this repo subject to the Developer Certificate of Origin (DCO), Version 1.1. In the past I have used emails: [personname@domain.com]\n\n11ac960e1070eacc2fe92ac9a3d1753400e1fd4b This is a commit".encode() ]
+            "I, personname hereby sign-off-by all of my past commits to this repo subject to the Developer Certificate of Origin (DCO), Version 1.1. In the past I have used emails: [personname@domain.com]\n\n11ac960e1070eacc2fe92ac9a3d1753400e1fd4b This is a commit".encode() 
         ]
 
         self.assertFalse(commit.hasDCOPastSignoff(), "Commit message had a past signoff")
@@ -102,6 +102,15 @@ class TestOrg(unittest.TestCase):
             "archived":True
             }),
             ]
+
+    @classmethod
+    def tearDownClass(cls):
+        if os.path.exists("testorg-repo1.csv"):
+            os.remove("testorg-repo1.csv")
+        if os.path.exists("testorg-repo2.csv"):
+            os.remove("testorg-repo2.csv")
+        if os.path.exists("testorg-repo3.csv"):
+            os.remove("testorg-repo3.csv")
 
     def testInitNoLoadRepos(self):
         org = Org("testorg",load_repos=False)
@@ -154,6 +163,33 @@ class TestOrg(unittest.TestCase):
             self.assertEqual(org.repos[1].name,"repo2")
             self.assertEqual(org.repos[2].name,"repo3")
             self.assertEqual(len(org.repos),3)
+
+class TestRepo(unittest.TestCase):
+
+    @unittest.mock.patch.object(git.Repo,'clone_from')
+    def testInitGithub(self,mock_method):
+        repo = Repo("https://github.com/foo/bar")
+        
+        self.assertEqual(repo.name,"bar")
+        self.assertEqual(repo.html_url,"https://github.com/foo/bar")
+        self.assertEqual(repo.csv_filename,"foo-bar.csv")
+        self.assertTrue(os.path.isfile("foo-bar.csv"))
+
+        if os.path.isfile("foo-bar.csv"):
+            os.remove("foo-bar.csv")
+
+    @unittest.mock.patch.object(git.Repo,'clone_from')
+    def testInitLocal(self,mock_method):
+        repo = Repo(".")
+        
+        self.assertEqual(repo.name,os.path.basename(os.path.realpath(".")))
+        self.assertEqual(repo.html_url,"")
+        self.assertEqual(repo.csv_filename,repo.name+".csv")
+
+        self.assertTrue(os.path.isfile(repo.name+".csv"))
+
+        if os.path.isfile(repo.name+".csv"):
+            os.remove(repo.name+".csv")
 
 if __name__ == '__main__':
     unittest.main()

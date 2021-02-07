@@ -39,7 +39,7 @@ class Commit():
 
     def hasDCOPastSignoff(self):
         for signoff in self.repo_object.past_signoffs:
-            if not signoff[1].find(self.git_commit_object.hexsha.encode()) == -1:
+            if re.search(self.git_commit_object.hexsha.encode(),signoff):
                 return True
 
         return False;

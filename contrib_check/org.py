@@ -7,12 +7,13 @@
 
 import os
 import socket
+import re
 
 from github import Github, GithubException, RateLimitExceededException
 from .repo import Repo 
 
 class Org():
-    org_name = ''
+    __org_name = ''
     __org_type = 'github'
     ignore_repos = []
     only_repos = []
@@ -28,7 +29,15 @@ class Org():
         self.skip_archived = skip_archived
         if load_repos:
             self.reloadRepos()
-    
+
+    @property
+    def org_name(self):
+        return self.__org_name
+
+    @org_name.setter
+    def org_name(self, org_name):
+        self.__org_name = re.sub('^http(s)*://(www\.)*github.com/','',org_name)
+
     @property
     def org_type(self):
         return self.__org_type
@@ -67,8 +76,6 @@ class Org():
 
         return self.repos
     
-    def _getGithubReposForOrg():
+    def _getGithubReposForOrg(self):
         g = Github(login_or_token=os.environ['GITHUB_TOKEN'], per_page=1000)
         return g.get_organization(self.org_name).get_repos()
-
-   

@@ -36,11 +36,11 @@ def main():
         if 'repo' in config:
             args.repo = config['repo']
         elif 'org' in config:
-            args.org = config['org']
+            args.org = config['org']['name']
    
     repos = []
     if args.org:
-        orgObj = Org(args.org)
+        orgObj = Org(args.org,load_repos=False)
         if 'type' in config['org']:
             orgObj.org_type=config['org']['type']
         if 'ignore_repos' in config['org']:
@@ -49,7 +49,7 @@ def main():
             orgObj.only_repos=config['org']['only_repos']
         if 'skip_archived' in config['org']:
             orgObj.skip_archived=config['org']['skip_archived']
-        repos = orgObj.loadRepos()
+        repos = orgObj.reloadRepos()
 
     if args.repo:
         repos = [Repo(args.repo)]
@@ -64,6 +64,7 @@ def main():
             else:
                 repoObj.loadPastSignoffs()
         repoObj.scan()
+        print(repoObj.remediations)
 
     print("This took "+str(datetime.now() - startTime))
 

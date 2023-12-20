@@ -22,8 +22,8 @@ class Commit():
 
     create_prior_commits_dir = 'dco-signoffs'
     
-    remediation_regex_individual = "^I, (.*) <(.*)>, hereby add my Signed-off-by to this commit: (.*)\s*$"
-    remediation_regex_thirdparty = "^On behalf of (.*) <(.*)>, I, (.*) <(.*)>, hereby add my Signed-off-by to this commit: (.*)\s*$"
+    remediation_regex_individual = "^I, (.*) <(.*)>, hereby add my Signed-off-by to this commit: (.*)$"
+    remediation_regex_thirdparty = "^On behalf of (.*) <(.*)>, I, (.*) <(.*)>, hereby add my Signed-off-by to this commit: (.*)$"
 
     allow_remediation_commit_individual = False
     allow_remediation_commit_thirdparty = False

@@ -36,7 +36,7 @@ class Org():
 
     @org_name.setter
     def org_name(self, org_name):
-        self.__org_name = re.sub('^http(s)*://(www\.)*github.com/','',org_name)
+        self.__org_name = re.sub('^http(s)*://(www.)*github.com/','',org_name)
 
     @property
     def org_type(self):

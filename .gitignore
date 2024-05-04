@@ -25,6 +25,7 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+.coverage
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -186,5 +187,7 @@ Network Trash Folder
 Temporary Items
 .apdisk
 
+# Don't save output/config files
 /*.yml
-dco-signoffs/
+/*.csv
+/dco-signoffs/

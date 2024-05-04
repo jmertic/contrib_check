@@ -7,13 +7,17 @@
 #
 # Thin layer that uses GitPython.Repo.Base but adds some metadata and the past signoffs
 #
+from __future__ import annotations
 
 import os
-import git
 import tempfile
 import csv
 import re
 import shutil
+
+from alive_progress import alive_bar
+import git
+from git import RemoteProgress
 
 from .commit import Commit
 
@@ -21,8 +25,10 @@ class Repo():
     name = ''
     html_url = ''
     past_signoffs = []
+    remediations = []
     git_repo_object = None
     prior_commits_dir = 'dco-signoffs' 
+    remediation_commits_dir = 'remediation-commits'
 
     checks = {
         'dco': True
@@ -47,13 +53,15 @@ class Repo():
             self.html_url = repo_path
             self.name = url_search.group(2)
             self.__fo = tempfile.TemporaryDirectory()
-            self.git_repo_object = git.Repo.clone_from(self.html_url,self.__fo.name)
+            print("Cloning repo %s" %self.html_url)
+            self.git_repo_object = git.Repo.clone_from(self.html_url,self.__fo.name,progress=GitRemoteProgress())
             self.csv_filename = url_search.group(1)+'-'+self.name+'.csv'
         # local clone    
         elif os.path.isdir(repo_path):
             self.name = os.path.basename(os.path.realpath(repo_path))
             self.git_repo_object = git.Repo(repo_path)
             self.csv_filename = self.name+'.csv'
+        self.loadRemediationCommits()
 
     def loadPastSignoffs(self, dco_signoffs_directories = ["dco-signoffs"]):
         try:
@@ -67,6 +75,12 @@ class Repo():
             print("...invalid or empty repo - skipping")
             return False
 
+    def loadRemediationCommits(self):
+        for commit in self.git_repo_object.iter_commits():
+            commitObj = Commit(commit,self)
+            if commitObj.isRemediationCommit():
+                self.remediations.extend(commitObj.remediations)
+
     def scan(self):
         for commit in self.git_repo_object.iter_commits():
             commitObj = Commit(commit,self)
@@ -79,12 +93,6 @@ class Repo():
 
     @csv_filename.setter
     def csv_filename(self,csvfile):
-        # remove file if there already
-        if os.path.isfile(csvfile):
-            os.remove(csvfile)
-        
-        self.__csvfileref = open(csvfile, mode='w') 
-        self.__csv_writer = csv.writer(self.__csvfileref, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
         self.__csv_filename = csvfile
     
     def __del__(self):
@@ -94,6 +102,14 @@ class Repo():
             self.__csvfileref.close() 
 
     def writeError(self, commit, error_type):
+        if not self.__csvfileref or not self.__csv_writer:
+            # remove file if there already
+            if os.path.isfile(self.__csv_filename):
+                os.remove(self.__csv_filename)
+
+            self.__csvfileref = open(self.__csv_filename, mode='w')
+            self.__csv_writer = csv.writer(self.__csvfileref, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
+
         self.__csv_writer.writerow([
             self.name,
             commit.git_commit_object.hexsha,
@@ -107,6 +123,22 @@ class Repo():
             
         if error_type == 'dco':
             self.writeDCOPriorCommitsFile(commit)
+
+    def writeIndividualRemediationCommit(self, commit):
+        if not os.path.exists(self.remediation_commits_dir):
+            os.mkdir(self.remediation_commits_dir)
+        
+        remediationfilename = "{}/{}-{}.txt".format(self.remediation_commits_dir,self.name,commit.git_commit.author.name)
+        shorthash = self.git_repo_object.git.rev_parse(commit.git_commit_object.hexsha, short="7")
+
+        if not os.path.isfile(remediationfilename):
+            fh = open(remediationfilename,  mode='w+')
+            fh.write("DCO Remediation Commit for {} <{}>\n\n".format(commit.git_commit_object.author.name,commit.git_commit_object.author.email))
+        else:
+            fh = open(remediationfilename,  mode='a')
+
+        fh.write("I, {} <{}>, hereby add my Signed-off-by to this commit: {}\n".format(commit.git_commit_object.author.name,commit.git_commit_object.author.email,self.git_repo_object.git.rev_parse(commit.git_commit_object.hexsha, short="7")))
+        fh.close()
 
     def writeDCOPriorCommitsFile(self, commit):
         if not os.path.exists(self.prior_commits_dir):
@@ -124,3 +156,62 @@ class Repo():
 
         fh.write(commit.git_commit_object.hexsha+" "+commit.git_commit_object.message+"\n")
         fh.close()
+
+class GitRemoteProgress(git.RemoteProgress):
+    OP_CODES = [
+        "BEGIN",
+        "CHECKING_OUT",
+        "COMPRESSING",
+        "COUNTING",
+        "END",
+        "FINDING_SOURCES",
+        "RECEIVING",
+        "RESOLVING",
+        "WRITING",
+    ]
+    OP_CODE_MAP = {
+        getattr(git.RemoteProgress, _op_code): _op_code for _op_code in OP_CODES
+    }
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.alive_bar_instance = None
+
+    @classmethod
+    def get_curr_op(cls, op_code: int) -> str:
+        """Get OP name from OP code."""
+        # Remove BEGIN- and END-flag and get op name
+        op_code_masked = op_code & cls.OP_MASK
+        return cls.OP_CODE_MAP.get(op_code_masked, "?").title()
+
+    def update(
+        self,
+        op_code: int,
+        cur_count: str | float,
+        max_count: str | float | None = None,
+        message: str | None = "",
+    ) -> None:
+        cur_count = float(cur_count)
+        max_count = float(max_count)
+
+        # Start new bar on each BEGIN-flag
+        if op_code & self.BEGIN:
+            self.curr_op = self.get_curr_op(op_code)
+            self._dispatch_bar(title=self.curr_op)
+
+        self.bar(cur_count / max_count)
+        self.bar.text(message)
+
+        # End progress monitoring on each END-flag
+        if op_code & git.RemoteProgress.END:
+            self._destroy_bar()
+
+    def _dispatch_bar(self, title: str | None = "") -> None:
+        """Create a new progress bar"""
+        self.alive_bar_instance = alive_bar(manual=True, title=title)
+        self.bar = self.alive_bar_instance.__enter__()
+
+    def _destroy_bar(self) -> None:
+        """Destroy an existing progress bar"""
+        self.alive_bar_instance.__exit__(None, None, None)
+

@@ -112,6 +112,7 @@ class TestOrg(unittest.TestCase):
         if os.path.exists("testorg-repo3.csv"):
             os.remove("testorg-repo3.csv")
 
+    @unittest.mock.patch.dict(os.environ,{'GITHUB_TOKEN':'test123'})
     def testInitNoLoadRepos(self):
         org = Org("testorg",load_repos=False)
 

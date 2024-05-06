@@ -1,3 +1,5 @@
+## Source https://github.com/github/gitignore/blob/main/Python.gitignore
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -159,6 +161,8 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
+## Source: https://github.com/github/gitignore/blob/main/Global/macOS.gitignore
+
 # General
 .DS_Store
 .AppleDouble
@@ -185,6 +189,8 @@ Icon
 Network Trash Folder
 Temporary Items
 .apdisk
+
+## Specific to this project
 
 /*.yml
 dco-signoffs/

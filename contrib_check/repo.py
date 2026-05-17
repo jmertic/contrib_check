@@ -95,6 +95,12 @@ class Repo():
 
     @csv_filename.setter
     def csv_filename(self, csvfile):
+        # remove file if there already
+        if os.path.isfile(csvfile):
+            os.remove(csvfile)
+
+        self.__csvfileref = open(csvfile, mode='w')
+        self.__csv_writer = csv.writer(self.__csvfileref, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
         self.__csv_filename = csvfile
 
     def __del__(self):
@@ -104,14 +110,6 @@ class Repo():
             self.__csvfileref.close()
 
     def write_error(self, commit, error_type):
-        if not self.__csvfileref or not self.__csv_writer:
-            # remove file if there already
-            if os.path.isfile(self.__csv_filename):
-                os.remove(self.__csv_filename)
-
-            self.__csvfileref = open(self.__csv_filename, mode='w')
-            self.__csv_writer = csv.writer(self.__csvfileref, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
-
         self.__csv_writer.writerow([
             self.name,
             commit.git_commit_object.hexsha,

@@ -19,6 +19,9 @@ class TestCommit(unittest.TestCase):
     @classmethod
     def setUpClass(self):
         self._mock_repo = Mock()
+        # Make tree subscript raise KeyError so load_remediation_commit_config
+        # takes the except KeyError path (no .github/dco.yml present)
+        self._mock_repo.git_repo_object.head.commit.tree.__getitem__ = Mock(side_effect=KeyError)
         self._mock_commit_merge = Mock()
         self._mock_commit_merge.parents = [1,2,3]
         self._mock_commit = Mock()

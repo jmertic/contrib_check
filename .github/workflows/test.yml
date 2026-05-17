@@ -47,7 +47,7 @@ jobs:
 
       - name: Run tests
         run: |
-          poetry run coverage run -m pytest tests.py
+          poetry run coverage run -m pytest tests/
           poetry run coverage xml
 
       - name: SonarCloud Scan

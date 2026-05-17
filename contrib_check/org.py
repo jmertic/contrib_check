@@ -8,6 +8,7 @@
 import os
 import socket
 import re
+import time
 
 from github import Github, GithubException, RateLimitExceededException
 from .repo import Repo
@@ -65,7 +66,7 @@ class Org():
                     self.repos.append(Repo(gh_repo.html_url))
             except RateLimitExceededException:
                 print("Sleeping until we get past the API rate limit....")
-                time.sleep(g.rate_limiting_resettime-now())
+                time.sleep(60)
             except GithubException as e:
                 if e.status == 502:
                     print("Server error - retrying...")

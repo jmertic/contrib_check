@@ -13,15 +13,17 @@ packages = [{ include = "contrib_check" }]
 contrib-check = "contrib_check.main:main"
 
 [tool.poetry.dependencies]
-python = "^3.12"
+python = "^3.9"
 PyYAML = ">=6.0.1"
 GitPython = ">=3.1.50"
 PyGithub = ">=2.4.0"
-alive-progress = "^3.3.0"
 
 [tool.poetry.group.dev.dependencies]
 coverage = ">=7.14.0"
 pytest = ">=8.0.0"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [tool.coverage.run]
 source = ["contrib_check"]

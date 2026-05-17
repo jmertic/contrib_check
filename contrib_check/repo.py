@@ -22,20 +22,21 @@ from git import RemoteProgress
 from .commit import Commit
 
 class Repo():
+
     name = ''
     html_url = ''
     past_signoffs = []
     remediations = []
     git_repo_object = None
-    prior_commits_dir = 'dco-signoffs' 
+    prior_commits_dir = 'dco-signoffs'
     remediation_commits_dir = 'remediation-commits'
 
     checks = {
         'dco': True
     }
-    
+
     error_types = {
-        'dco': 'The commit did not have a DCO Signoff'    
+        'dco': 'The commit did not have a DCO Signoff'
     }
 
     __csv_filename = 'output.csv'
@@ -44,9 +45,10 @@ class Repo():
     __csvfileref = None
 
     def __init__(self, repo_path):
+
         # Skip LFS files - we don't need to download them
         os.environ["GIT_LFS_SKIP_SMUDGE"]="1"
-        
+
         # if GitHub, we can find what we need
         url_search = re.search("https://github.com/(.*)/(.*)",repo_path)
         if url_search:
@@ -56,12 +58,12 @@ class Repo():
             print("Cloning repo %s" %self.html_url)
             self.git_repo_object = git.Repo.clone_from(self.html_url,self.__fo.name,progress=GitRemoteProgress())
             self.csv_filename = url_search.group(1)+'-'+self.name+'.csv'
-        # local clone    
+        # local clone
         elif os.path.isdir(repo_path):
             self.name = os.path.basename(os.path.realpath(repo_path))
             self.git_repo_object = git.Repo(repo_path)
             self.csv_filename = self.name+'.csv'
-        self.loadRemediationCommits()
+        self.load_remediation_commits()
 
     def loadPastSignoffs(self, dco_signoffs_directories = ["dco-signoffs"]):
         try:
@@ -75,33 +77,33 @@ class Repo():
             print("...invalid or empty repo - skipping")
             return False
 
-    def loadRemediationCommits(self):
+    def load_remediation_commits(self):
         for commit in self.git_repo_object.iter_commits():
-            commitObj = Commit(commit,self)
-            if commitObj.isRemediationCommit():
-                self.remediations.extend(commitObj.remediations)
+            commit_obj = Commit(commit, self)
+            if commit_obj.is_remediation_commit():
+                self.remediations.extend(commit_obj.remediations)
 
     def scan(self):
         for commit in self.git_repo_object.iter_commits():
-            commitObj = Commit(commit,self)
-            if 'dco' in self.checks and not commitObj.checkDCOSignoff():
-                self.writeError(commitObj,'dco')
+            commit_obj = Commit(commit, self)
+            if 'dco' in self.checks and not commit_obj.checkDCOSignoff():
+                self.write_error(commit_obj, 'dco')
 
     @property
     def csv_filename(self):
         return self.__csv_filename
 
     @csv_filename.setter
-    def csv_filename(self,csvfile):
+    def csv_filename(self, csvfile):
         self.__csv_filename = csvfile
-    
+
     def __del__(self):
         if self.__fo:
             self.__fo.cleanup()
         if self.__csvfileref:
-            self.__csvfileref.close() 
+            self.__csvfileref.close()
 
-    def writeError(self, commit, error_type):
+    def write_error(self, commit, error_type):
         if not self.__csvfileref or not self.__csv_writer:
             # remove file if there already
             if os.path.isfile(self.__csv_filename):
@@ -119,43 +121,45 @@ class Repo():
             commit.git_commit_object.authored_datetime,
             error_type,
             self.error_types[error_type]
-            ])
-            
-        if error_type == 'dco':
-            self.writeDCOPriorCommitsFile(commit)
+        ])
 
-    def writeIndividualRemediationCommit(self, commit):
+        if error_type == 'dco':
+            self.write_dco_prior_commits_file(commit)
+
+    def write_individual_remediation_commit(self, commit):
         if not os.path.exists(self.remediation_commits_dir):
             os.mkdir(self.remediation_commits_dir)
-        
-        remediationfilename = "{}/{}-{}.txt".format(self.remediation_commits_dir,self.name,commit.git_commit.author.name)
-        shorthash = self.git_repo_object.git.rev_parse(commit.git_commit_object.hexsha, short="7")
+
+        remediationfilename = "{}/{}-{}.txt".format(self.remediation_commits_dir, self.name, commit.git_commit_object.author.name)
+        short_hash = self.git_repo_object.git.rev_parse(commit.git_commit_object.hexsha, short="7")
 
         if not os.path.isfile(remediationfilename):
-            fh = open(remediationfilename,  mode='w+')
-            fh.write("DCO Remediation Commit for {} <{}>\n\n".format(commit.git_commit_object.author.name,commit.git_commit_object.author.email))
+            fh = open(remediationfilename, mode='w+')
+            fh.write("DCO Remediation Commit for {} <{}>\n\n".format(commit.git_commit_object.author.name, commit.git_commit_object.author.email))
         else:
-            fh = open(remediationfilename,  mode='a')
+            fh = open(remediationfilename, mode='a')
 
-        fh.write("I, {} <{}>, hereby add my Signed-off-by to this commit: {}\n".format(commit.git_commit_object.author.name,commit.git_commit_object.author.email,self.git_repo_object.git.rev_parse(commit.git_commit_object.hexsha, short="7")))
+        fh.write("I, {} <{}>, hereby add my Signed-off-by to this commit: {}\n".format(commit.git_commit_object.author.name, commit.git_commit_object.author.email, short_hash))
         fh.close()
 
-    def writeDCOPriorCommitsFile(self, commit):
+    def write_dco_prior_commits_file(self, commit):
         if not os.path.exists(self.prior_commits_dir):
             os.mkdir(self.prior_commits_dir)
+
         if not os.path.exists(self.prior_commits_dir+'/'+self.name):
             os.mkdir(self.prior_commits_dir+'/'+self.name)
 
         commitfilename = self.prior_commits_dir+'/'+self.name+'/'+commit.git_commit_object.author.name+'-'+self.name+'.txt'
 
         if not os.path.isfile(commitfilename):
-            fh = open(commitfilename,  mode='w+')
+            fh = open(commitfilename, mode='w+')
             fh.write("I, "+commit.git_commit_object.author.name+" hereby sign-off-by all of my past commits to this repo subject to the Developer Certificate of Origin (DCO), Version 1.1. In the past I have used emails: "+commit.git_commit_object.author.email+"\n\n")
         else:
-            fh = open(commitfilename,  mode='a')
+            fh = open(commitfilename, mode='a')
 
         fh.write(commit.git_commit_object.hexsha+" "+commit.git_commit_object.message+"\n")
         fh.close()
+
 
 class GitRemoteProgress(git.RemoteProgress):
     OP_CODES = [
@@ -214,4 +218,3 @@ class GitRemoteProgress(git.RemoteProgress):
     def _destroy_bar(self) -> None:
         """Destroy an existing progress bar"""
         self.alive_bar_instance.__exit__(None, None, None)
-

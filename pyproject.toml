@@ -1,0 +1,30 @@
+[tool.poetry]
+name = "contrib-check"
+version = "0.1.0"
+description = "Checks contributions in a repo or a GitHub org for DCO signoffs and other things."
+authors = ["John Mertic <jmertic@linuxfoundation.org>"]
+license = "Apache-2.0"
+readme = "README.md"
+homepage = "https://github.com/jmertic/contrib_check"
+repository = "https://github.com/jmertic/contrib_check"
+packages = [{ include = "contrib_check" }]
+
+[tool.poetry.scripts]
+contrib-check = "contrib_check.main:main"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+PyYAML = ">=6.0.1"
+GitPython = ">=3.1.50"
+PyGithub = ">=2.4.0"
+
+[tool.poetry.group.dev.dependencies]
+coverage = ">=7.14.0"
+pytest = ">=8.0.0"
+
+[tool.coverage.run]
+source = ["contrib_check"]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

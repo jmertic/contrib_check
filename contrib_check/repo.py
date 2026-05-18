@@ -147,6 +147,7 @@ class Repo():
 
         if error_type == 'dco':
             self.write_dco_prior_commits_file(commit)
+            self.write_individual_remediation_commit(commit)
 
     def write_individual_remediation_commit(self, commit):
         os.makedirs(self.remediation_commits_dir, exist_ok=True)

@@ -51,7 +51,7 @@ def main():
             orgObj.only_repos = config['org']['only_repos']
         if 'skip_archived' in config['org']:
             orgObj.skip_archived = config['org']['skip_archived']
-        repos = orgObj.reloadRepos()
+        repos = orgObj.reload_repos()
 
     if args.repo:
         repos = [Repo(args.repo)]
@@ -62,9 +62,9 @@ def main():
             if 'dco' in config and 'prior_commits_directory' in config['dco']:
                 repoObj.prior_commits_dir = config['dco']['prior_commits_directory']
             if 'dco' in config and 'signoff_dirs' in config['dco']:
-                repoObj.loadPastSignoffs(config['dco']['signoff_dirs'])
+                repoObj.load_past_signoffs(config['dco']['signoff_dirs'])
             else:
-                repoObj.loadPastSignoffs()
+                repoObj.load_past_signoffs()
             repoObj.scan()
 
     print("This took " + str(datetime.now() - startTime))

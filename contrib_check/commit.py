@@ -37,19 +37,19 @@ class Commit():
 
         self.load_remediation_commit_config()
 
-    def checkDCOSignoff(self):
-        if self.isDCOSignOffRequired():
-            return self.hasDCOSignOff() or self.hasDCOPastSignoff() or self.has_remediation()
+    def check_dco_signoff(self):
+        if self.is_dco_signoff_required():
+            return self.has_dco_signoff() or self.has_dco_past_signoff() or self.has_remediation()
 
         return True
 
-    def isDCOSignOffRequired(self):
+    def is_dco_signoff_required(self):
         return not self.is_merge_commit
 
-    def hasDCOSignOff(self):
+    def has_dco_signoff(self):
         return (re.search("Signed-off-by: (.+)",self.git_commit_object.message) != None)
 
-    def hasDCOPastSignoff(self):
+    def has_dco_past_signoff(self):
         for signoff in self.repo_object.past_signoffs:
             if (re.search(self.git_commit_object.hexsha.encode(),signoff) != None):
                 return True

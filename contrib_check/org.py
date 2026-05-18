@@ -23,14 +23,22 @@ class Org():
     lazy_load = False
     repos = []
 
-    def __init__(self, org_name, org_type='github', ignore_repos=[], only_repos=[], skip_archived=True, load_repos=True):
+    def __init__(self, org_name, org_type='github', ignore_repos=None, only_repos=None, skip_archived=True, load_repos=True):
+        # Properly bound mutable states to this exact instance
+        self.ignore_repos = ignore_repos if ignore_repos is not None else []
+        self.only_repos = only_repos if only_repos is not None else []
+        self.repos = []
+
+        self.__org_name = ''
+        self.__org_type = 'github'
+        self.skip_archived = skip_archived
+
+        # Execute properties assignments to trigger setters validation
         self.org_type = org_type
         self.org_name = org_name
-        self.ignore_repos = ignore_repos
-        self.only_repos = only_repos
-        self.skip_archived = skip_archived
+
         if load_repos:
-            self.reloadRepos()
+            self.reload_repos()
 
     @property
     def org_name(self):
@@ -50,7 +58,7 @@ class Org():
             raise Exception('Github token is not defined. Set GITHUB_TOKEN environment variable to a valid Github token')
         self.__org_type = org_type
 
-    def reloadRepos(self):
+    def reload_repos(self):
         self.repos = []
 
         if self.org_type == 'github':

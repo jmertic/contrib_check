@@ -34,12 +34,12 @@ class TestCommitDCOSignOff(unittest.TestCase):
     def test_has_no_dco_signoff(self):
         commit = _make_commit()
         commit.git_commit_object.message = "has no signoff"
-        self.assertFalse(commit.hasDCOSignOff())
+        self.assertFalse(commit.has_dco_signoff())
 
     def test_has_dco_signoff(self):
         commit = _make_commit()
         commit.git_commit_object.message = "fix: thing Signed-off-by: John Mertic <jmertic@linuxfoundation.org>"
-        self.assertTrue(commit.hasDCOSignOff())
+        self.assertTrue(commit.has_dco_signoff())
 
 
 class TestCommitDCOPastSignoff(unittest.TestCase):
@@ -57,30 +57,30 @@ class TestCommitDCOPastSignoff(unittest.TestCase):
         commit = _make_commit()
         commit.git_commit_object.hexsha = self.SHA
         commit.repo_object.past_signoffs = [self.SIGNOFF_BLOB]
-        self.assertTrue(commit.hasDCOPastSignoff())
+        self.assertTrue(commit.has_dco_past_signoff())
 
     def test_no_past_signoff(self):
         commit = _make_commit()
         commit.git_commit_object.hexsha = self.OTHER_SHA
         commit.repo_object.past_signoffs = [self.SIGNOFF_BLOB]
-        self.assertFalse(commit.hasDCOPastSignoff())
+        self.assertFalse(commit.has_dco_past_signoff())
 
     def test_empty_past_signoffs(self):
         commit = _make_commit()
         commit.git_commit_object.hexsha = self.SHA
         commit.repo_object.past_signoffs = []
-        self.assertFalse(commit.hasDCOPastSignoff())
+        self.assertFalse(commit.has_dco_past_signoff())
 
 
 class TestCommitDCOSignOffRequired(unittest.TestCase):
 
     def test_not_required_for_merge_commit(self):
         commit = _make_commit(parents=[1, 2, 3])
-        self.assertFalse(commit.isDCOSignOffRequired())
+        self.assertFalse(commit.is_dco_signoff_required())
 
     def test_required_for_normal_commit(self):
         commit = _make_commit(parents=[1])
-        self.assertTrue(commit.isDCOSignOffRequired())
+        self.assertTrue(commit.is_dco_signoff_required())
 
 
 class TestCommitCheckDCOSignoff(unittest.TestCase):
@@ -96,12 +96,12 @@ class TestCommitCheckDCOSignoff(unittest.TestCase):
     def test_merge_commit_always_passes(self):
         commit = _make_commit(parents=[1, 2])
         commit.git_commit_object.message = "no signoff here"
-        self.assertTrue(commit.checkDCOSignoff())
+        self.assertTrue(commit.check_dco_signoff())
 
     def test_normal_commit_with_signoff_passes(self):
         commit = _make_commit(parents=[1])
         commit.git_commit_object.message = "fix: thing Signed-off-by: Jane <jane@example.com>"
-        self.assertTrue(commit.checkDCOSignoff())
+        self.assertTrue(commit.check_dco_signoff())
 
     def test_normal_commit_without_signoff_fails(self):
         commit = _make_commit(parents=[1])
@@ -109,14 +109,14 @@ class TestCommitCheckDCOSignoff(unittest.TestCase):
         commit.repo_object.past_signoffs = []
         commit.repo_object.git_repo_object.git.rev_parse.return_value = "abc1234"
         commit.remediations = []
-        self.assertFalse(commit.checkDCOSignoff())
+        self.assertFalse(commit.check_dco_signoff())
 
     def test_normal_commit_with_past_signoff_passes(self):
         commit = _make_commit(parents=[1])
         commit.git_commit_object.message = "no signoff"
         commit.git_commit_object.hexsha = self.SHA
         commit.repo_object.past_signoffs = [self.SIGNOFF_BLOB]
-        self.assertTrue(commit.checkDCOSignoff())
+        self.assertTrue(commit.check_dco_signoff())
 
     def test_normal_commit_with_remediation_passes(self):
         commit = _make_commit(parents=[1])
@@ -125,7 +125,7 @@ class TestCommitCheckDCOSignoff(unittest.TestCase):
         short = "abc1234"
         commit.repo_object.git_repo_object.git.rev_parse.return_value = short
         commit.remediations = [short]
-        self.assertTrue(commit.checkDCOSignoff())
+        self.assertTrue(commit.check_dco_signoff())
 
 
 class TestCommitHasRemediation(unittest.TestCase):

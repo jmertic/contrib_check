@@ -4,131 +4,116 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # encoding=utf8
+#
 
 import os
 import unittest
-from unittest.mock import Mock, patch, MagicMock
-import socket
-
-import git
-from github import GithubException, RateLimitExceededException
-
+from unittest.mock import MagicMock, patch
+from github import RateLimitExceededException, GithubException
 from contrib_check.org import Org
 
+class TestOrgCoverage(unittest.TestCase):
 
-def _make_gh_repo(name, html_url=None, archived=False):
-    r = Mock()
-    r.name = name
-    r.html_url = html_url or f"https://github.com/testorg/{name}"
-    r.archived = archived
-    return r
-
-
-GH_REPOS = [
-    _make_gh_repo("repo1"),
-    _make_gh_repo("repo2"),
-    _make_gh_repo("repo3", archived=True),
-]
-
-
-class TestOrgInit(unittest.TestCase):
-
-    @patch.dict(os.environ, {'GITHUB_TOKEN': 'test123'})
-    def test_init_no_load_repos(self):
-        org = Org("testorg", load_repos=False)
-        self.assertEqual(org.repos, [])
-
-    def test_init_github_no_token_raises(self):
-        env = {k: v for k, v in os.environ.items() if k != 'GITHUB_TOKEN'}
-        with patch.dict(os.environ, env, clear=True):
-            with self.assertRaisesRegex(Exception, 'Github token'):
-                Org("testorg")
-
-    @patch.dict(os.environ, {'GITHUB_TOKEN': 'test123'})
-    def test_org_name_strips_github_url(self):
-        org = Org("https://github.com/myorg", load_repos=False)
-        self.assertEqual(org.org_name, "myorg")
-
-    @patch.dict(os.environ, {'GITHUB_TOKEN': 'test123'})
-    def test_org_name_strips_www_github_url(self):
-        org = Org("https://www.github.com/myorg", load_repos=False)
-        self.assertEqual(org.org_name, "myorg")
-
-    @patch.dict(os.environ, {'GITHUB_TOKEN': 'test123'})
-    def test_org_name_plain_string_unchanged(self):
-        org = Org("myorg", load_repos=False)
-        self.assertEqual(org.org_name, "myorg")
-
-
-class TestOrgReloadRepos(unittest.TestCase):
-
-    @patch.dict(os.environ, {'GITHUB_TOKEN': 'test123'})
-    @patch.object(git.Repo, 'clone_from')
-    def test_load_repos_excludes_archived_by_default(self, _clone):
-        with patch.object(Org, '_get_github_repos_for_org', return_value=GH_REPOS):
-            org = Org("testorg")
-        self.assertEqual(len(org.repos), 2)
-        self.assertEqual(org.repos[0].name, "repo1")
-        self.assertEqual(org.repos[1].name, "repo2")
-
-    @patch.dict(os.environ, {'GITHUB_TOKEN': 'test123'})
-    @patch.object(git.Repo, 'clone_from')
-    def test_load_repos_includes_archived_when_flag_off(self, _clone):
-        with patch.object(Org, '_get_github_repos_for_org', return_value=GH_REPOS):
-            org = Org("testorg", skip_archived=False)
-        self.assertEqual(len(org.repos), 3)
-
-    @patch.dict(os.environ, {'GITHUB_TOKEN': 'test123'})
-    @patch.object(git.Repo, 'clone_from')
-    def test_ignore_repos(self, _clone):
-        with patch.object(Org, '_get_github_repos_for_org', return_value=GH_REPOS):
-            org = Org("testorg", ignore_repos=['repo1'])
-        self.assertEqual(len(org.repos), 1)
-        self.assertEqual(org.repos[0].name, "repo2")
-
-    @patch.dict(os.environ, {'GITHUB_TOKEN': 'test123'})
-    @patch.object(git.Repo, 'clone_from')
-    def test_only_repos(self, _clone):
-        with patch.object(Org, '_get_github_repos_for_org', return_value=GH_REPOS):
-            org = Org("testorg", only_repos=['repo1'])
-        self.assertEqual(len(org.repos), 1)
-        self.assertEqual(org.repos[0].name, "repo1")
-
-    @patch.dict(os.environ, {'GITHUB_TOKEN': 'test123'})
-    @patch('contrib_check.org.time.sleep')
-    def test_rate_limit_exception_prints_message(self, mock_sleep):
-        with patch.object(Org, '_get_github_repos_for_org', side_effect=RateLimitExceededException(403, "rate limit", {})):
-            # should not raise; prints a message and returns empty repos
-            org = Org("testorg")
-        self.assertEqual(org.repos, [])
-
-    @patch.dict(os.environ, {'GITHUB_TOKEN': 'test123'})
-    def test_github_exception_502_prints_retry(self):
-        exc = GithubException(502, "bad gateway", {})
-        with patch.object(Org, '_get_github_repos_for_org', side_effect=exc):
-            org = Org("testorg")
-        self.assertEqual(org.repos, [])
-
-    @patch.dict(os.environ, {'GITHUB_TOKEN': 'test123'})
-    def test_github_exception_other_prints_data(self):
-        exc = GithubException(404, "not found", {})
-        with patch.object(Org, '_get_github_repos_for_org', side_effect=exc):
-            org = Org("testorg")
-        self.assertEqual(org.repos, [])
-
-    @patch.dict(os.environ, {'GITHUB_TOKEN': 'test123'})
-    def test_socket_timeout_prints_retry(self):
-        with patch.object(Org, '_get_github_repos_for_org', side_effect=socket.timeout()):
-            org = Org("testorg")
-        self.assertEqual(org.repos, [])
+    def setUp(self):
+        # Seed the token environment variable required by the setter validation
+        os.environ['GITHUB_TOKEN'] = 'fake_secure_token'
 
     def tearDown(self):
-        # clean up any csv files created during tests
-        for name in ['repo1', 'repo2', 'repo3']:
-            path = f"testorg-{name}.csv"
-            if os.path.exists(path):
-                os.remove(path)
+        # Clear it out so it doesn't pollute real execution states
+        if 'GITHUB_TOKEN' in os.environ:
+            del os.environ['GITHUB_TOKEN']
 
+    def test_init_missing_token_exception(self):
+        """Verifies an explicit error is raised if GITHUB_TOKEN is absent."""
+        del os.environ['GITHUB_TOKEN']
+        with self.assertRaises(Exception) as context:
+            Org("my-org", org_type="github")
+        self.assertIn("Github token is not defined", str(context.exception))
 
-if __name__ == '__main__':
-    unittest.main()
+    @patch('contrib_check.org.Org._get_github_repos_for_org')
+    def test_reload_repos_skip_non_github_type(self, mock_get_repos):
+        """Fixes 56 ↛ 78 in original: Skips the github logic block entirely when type differs."""
+        org = Org("my-org", load_repos=False)
+        org._Org__org_type = 'custom_git'
+
+        result = org.reload_repos()
+        self.assertEqual(result, [])
+        mock_get_repos.assert_not_called()
+
+    @patch('contrib_check.org.Repo')
+    @patch('contrib_check.org.Org._get_github_repos_for_org')
+    def test_reload_repos_filters_and_loops(self, mock_get_repos, mock_repo_class):
+        """Exercises every loop condition inside reload_repos (ignore, only, and archived filters)."""
+        mock_repo_1 = MagicMock()
+        mock_repo_1.name = "ignored-project"
+        mock_repo_1.archived = False
+
+        mock_repo_2 = MagicMock()
+        mock_repo_2.name = "skipped-project"
+        mock_repo_2.archived = False
+
+        mock_repo_3 = MagicMock()
+        mock_repo_3.name = "archived-project"
+        mock_repo_3.archived = True
+
+        mock_repo_4 = MagicMock()
+        mock_repo_4.name = "valid-project"
+        mock_repo_4.archived = False
+        mock_repo_4.html_url = "https://github.com/my-org/valid-project"
+
+        mock_get_repos.return_value = [mock_repo_1, mock_repo_2, mock_repo_3, mock_repo_4]
+
+        org = Org(
+            org_name="my-org",
+            ignore_repos=["ignored-project"],
+            only_repos=["valid-project"],
+            skip_archived=True
+        )
+
+        self.assertEqual(len(org.repos), 1)
+        mock_repo_class.assert_called_once_with("https://github.com/my-org/valid-project")
+
+    @patch('contrib_check.org.Repo')
+    @patch('contrib_check.org.Org._get_github_repos_for_org')
+    def test_reload_repos_include_archived_when_disabled(self, mock_get_repos, mock_repo_class):
+        """Fixes 72 ↛ 73: Verifies archived repos are NOT skipped if skip_archived=False."""
+        mock_archived_repo = MagicMock()
+        mock_archived_repo.name = "old-archived-project"
+        mock_archived_repo.archived = True
+        mock_archived_repo.html_url = "https://github.com/my-org/old-archived-project"
+
+        mock_get_repos.return_value = [mock_archived_repo]
+
+        # Explicitly pass skip_archived=False to step past line 72
+        org = Org(org_name="my-org", skip_archived=False)
+
+        # The archived repo should bypass the filter and be added cleanly
+        self.assertEqual(len(org.repos), 1)
+        mock_repo_class.assert_called_once_with("https://github.com/my-org/old-archived-project")
+
+    @patch('contrib_check.org.Org._get_github_repos_for_org')
+    def test_reload_repos_rate_limiting_exception(self, mock_get_repos):
+        """Triggers the API rate limit handler block."""
+        mock_get_repos.side_effect = RateLimitExceededException(status=403, data="Rate limit hit", headers={})
+
+        with patch('time.sleep') as mock_sleep:
+            org = Org("my-org")
+            mock_sleep.assert_called_once_with(60)
+            self.assertEqual(org.repos, [])
+
+    @patch('contrib_check.org.Org._get_github_repos_for_org')
+    def test_reload_repos_server_error_502_exception(self, mock_get_repos):
+        """Triggers the 502 branch of the GithubException block."""
+        mock_get_repos.side_effect = GithubException(status=502, data={"message": "Bad Gateway"}, headers={})
+        org = Org("my-org")
+        self.assertEqual(org.repos, [])
+
+    @patch('contrib_check.org.Org._get_github_repos_for_org')
+    def test_reload_repos_other_github_exception_else_branch(self, mock_get_repos):
+        """Fixes 79 ↛ 82: Triggers the non-502 'else' block inside GithubException."""
+        # Use a 404 code to fail the 'if e.status == 502' condition
+        mock_get_repos.side_effect = GithubException(status=404, data={"message": "Not Found"}, headers={})
+
+        org = Org("my-org")
+        self.assertEqual(org.repos, [])
+

@@ -9,7 +9,9 @@
 import os
 import unittest
 from unittest.mock import MagicMock, patch
+
 from github import RateLimitExceededException, GithubException
+
 from contrib_check.org import Org
 
 class TestOrgCoverage(unittest.TestCase):

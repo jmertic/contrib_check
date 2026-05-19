@@ -26,6 +26,9 @@ pytest-cov = "^7.1.0"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+log_file = "pytest.log"
+log_file_level = "DEBUG"
+log_auto_indent = true
 
 [tool.coverage.run]
 source = ["contrib_check"]

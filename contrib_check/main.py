@@ -8,12 +8,13 @@
 import shutil
 from argparse import ArgumentParser, FileType
 from datetime import datetime
+import logging
+import sys
 
 # third party modules
 import yaml
 from contrib_check.repo import Repo
 from contrib_check.org import Org
-
 
 def main():
     startTime = datetime.now()
@@ -24,8 +25,38 @@ def main():
     group.add_argument("--repo", dest="repo", help="URL or path to the repo to search")
     group.add_argument("--org", dest="org", help="URL to GitHub org to search")
     parser.add_argument("--dco", dest="dco", help="Perform a DCO check (defaults to true)", default=True)
+    parser.add_argument("--dco-allow-individual-remediation-commits",
+                        dest="dco-allow-individual-remediation-commits",
+                        help="Allow individual remediation commits for DCO signoffs (only needed if not enabled in dco.yml in the repo)",
+                        default=False)
+    parser.add_argument("--dco-allow-thirdparty-remediation-commits",
+                        dest="dco-allow-thirdparty-remediation-commits",
+                        help="Allow third party remediation commits for DCO signoffs (only needed if not enabled in dco.yml in the repo)",
+                        default=False)
+    parser.add_argument("--dco-allow-dcosignoffs",
+                        dest="dco-allow-dcosignoffs",
+                        help="Allow reading and writing legacy DCO Signoff files")
+    parser.add_argument("-l", "--log", dest="loglevel", default="error",
+                        choices=['debug', 'info', 'warning', 'error', 'critical'], help="logging level")
+    parser.add_argument("--logfile", default='debug.log', help="Name for the log file")
 
     args = parser.parse_args()
+
+    levels = {
+        'critical': logging.CRITICAL,   # errors that mean an immediate stop
+        'error': logging.ERROR,         # general errors that will effect the output
+        'warn': logging.WARNING,        # errors that can be caught and corrected
+        'warning': logging.WARNING,
+        'info': logging.INFO,           # infomational messages
+        'debug': logging.DEBUG          # messages to help debug things misbehaving ;-)
+    }
+    handlers = [logging.FileHandler(args.logfile,mode="w")]
+    handlers.append(logging.StreamHandler(sys.stdout))
+    logging.basicConfig(
+        level=levels.get(args.loglevel.lower()),
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        handlers=handlers
+    )
 
     config = {}
     if args.configfile:
@@ -57,7 +88,7 @@ def main():
         repos = [Repo(args.repo)]
 
     for repoObj in repos:
-        print("Searching repo {}...".format(repoObj.name))
+        logging.getLogger().info(f"Searching repo {repoObj.name}")
         if 'dco' in config or args.dco:
             if 'dco' in config and 'prior_commits_directory' in config['dco']:
                 repoObj.prior_commits_dir = config['dco']['prior_commits_directory']
@@ -67,8 +98,4 @@ def main():
                 repoObj.load_past_signoffs()
             repoObj.scan()
 
-    print("This took " + str(datetime.now() - startTime))
-
-
-if __name__ == '__main__':
-    main()
+    logging.getLogger().info("This took {} seconds".format(str(datetime.now() - startTime)))

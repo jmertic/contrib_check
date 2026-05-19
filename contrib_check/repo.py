@@ -15,6 +15,7 @@ import tempfile
 import csv
 import re
 import shutil
+import logging
 
 from alive_progress import alive_bar
 import git
@@ -64,6 +65,7 @@ class Repo():
             self.csv_filename = f"{self.name}.csv"
 
         self.load_remediation_commits()
+        self.load_past_signoffs()
 
     def load_past_signoffs(self, dco_signoffs_directories=None):
         if dco_signoffs_directories is None:
@@ -77,7 +79,7 @@ class Repo():
                             content = content_file.read()
                             self.past_signoffs.append(content)
         except (ValueError, AttributeError):
-            print("...invalid or empty repo - skipping")
+            logging.getLogger().error(f"{self.git_repo_object} is an invalid or empty repo - skipping")
             return False
         return True
 
@@ -131,6 +133,7 @@ class Repo():
         self.close()
 
     def write_error(self, commit, error_type):
+        logging.getLogger().error(f"Found error '{error_type}' in commit {commit.git_commit_object.hexsha}")
         if not self.__csv_writer:
             raise RuntimeError("CSV file has not been initialized via csv_filename setter.")
 

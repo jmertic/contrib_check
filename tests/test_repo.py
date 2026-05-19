@@ -16,28 +16,35 @@ import git
 from contrib_check.repo import Repo
 from contrib_check.commit import Commit
 
-
 def _make_repo_github(url="https://github.com/foo/bar"):
-    """Construct a GitHub-style Repo with clone_from mocked out."""
-    with patch.object(git.Repo, 'clone_from') as mock_clone:
-        mock_git_repo = Mock()
-        mock_git_repo.iter_commits.return_value = []
-        mock_git_repo.head.commit.tree.__getitem__ = Mock(side_effect=KeyError)
-        mock_clone.return_value = mock_git_repo
-        repo = Repo(url)
-    return repo
+    with patch('git.Repo.clone_from') as mock_clone:
+        # 1. Setup the basic repo object mock
+        mock_repo_inst = MagicMock()
+        mock_clone.return_value = mock_repo_inst
 
+        # 2. Fix the iteration bug: force the tree to look like an empty iterable container
+        mock_repo_inst.head.commit.tree = []
+
+        # 3. Handle commit iteration mock requirements for other functions
+        mock_repo_inst.iter_commits.return_value = []
+
+        repo = Repo(url)
+        return repo
 
 def _make_repo_local(path="."):
-    """Construct a local Repo with git.Repo mocked out."""
-    mock_git_repo = Mock()
-    mock_git_repo.iter_commits.return_value = []
-    mock_git_repo.head.commit.tree.__getitem__ = Mock(side_effect=KeyError)
-    with patch.object(git.Repo, '__init__', return_value=None):
-        with patch('contrib_check.repo.git.Repo', return_value=mock_git_repo):
-            repo = Repo(path)
-    return repo
+    with patch('git.Repo') as mock_repo_class:
+        # 1. Setup the basic repo object mock
+        mock_repo_inst = MagicMock()
+        mock_repo_class.return_value = mock_repo_inst
 
+        # 2. Fix the iteration bug: force the tree to look like an empty iterable container
+        mock_repo_inst.head.commit.tree = []
+
+        # 3. Handle commit iteration mock requirements
+        mock_repo_inst.iter_commits.return_value = []
+
+        repo = Repo(path)
+        return repo
 
 class TestRepoInitGithub(unittest.TestCase):
 

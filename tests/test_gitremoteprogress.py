@@ -7,7 +7,9 @@
 
 import unittest
 from unittest.mock import MagicMock, patch
+
 import git
+
 from contrib_check.repo import GitRemoteProgress
 
 class TestGitRemoteProgressCoverage(unittest.TestCase):

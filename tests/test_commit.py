@@ -12,7 +12,6 @@ from unittest.mock import Mock, mock_open, patch
 
 from contrib_check.commit import Commit
 
-
 def _make_mock_repo(tree_raises_key_error=True):
     """Return a mock repo whose tree[] raises KeyError by default (no dco.yml)."""
     mock_repo = Mock()

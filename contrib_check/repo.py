@@ -16,6 +16,7 @@ import csv
 import re
 import shutil
 import logging
+from pathlib import Path
 
 from alive_progress import alive_bar
 import git
@@ -25,21 +26,20 @@ from .commit import Commit
 
 class Repo():
     # Class-level immutable defaults (Safe)
-    prior_commits_dir = 'dco-signoffs'
-    remediation_commits_dir = 'remediation-commits'
 
     checks = { 'dco': True }
     error_types = { 'dco': 'The commit did not have a DCO Signoff' }
 
-    def __init__(self, repo_path):
-        # Properly scope mutable collections to the INSTANCE
+    def __init__(self, repo_path: str):
         self.name = ''
         self.html_url = ''
         self.past_signoffs = []
         self.remediations = []
         self.git_repo_object = None
-
-        self.__csv_filename = 'output.csv'
+        self.prior_commits_dir = 'dco-signoffs'
+        self.remediation_commits_dir = 'remediation-commits'
+        self.output_dir = Path.cwd()
+        self.csv_filename = "output.csv"
         self.__csv_writer = None
         self.__fo = None
         self.__csvfileref = None
@@ -65,23 +65,6 @@ class Repo():
             self.csv_filename = f"{self.name}.csv"
 
         self.load_remediation_commits()
-        self.load_past_signoffs()
-
-    def load_past_signoffs(self, dco_signoffs_directories=None):
-        if dco_signoffs_directories is None:
-            dco_signoffs_directories = ["dco-signoffs"]
-
-        try:
-            for entry in self.git_repo_object.head.commit.tree:
-                if entry.type == 'tree' and entry.name in dco_signoffs_directories:
-                    for blob in entry.blobs:
-                        with open(blob.abspath, 'rb') as content_file:
-                            content = content_file.read()
-                            self.past_signoffs.append(content)
-        except (ValueError, AttributeError):
-            logging.getLogger().error(f"{self.git_repo_object} is an invalid or empty repo - skipping")
-            return False
-        return True
 
     def load_remediation_commits(self):
         if not self.git_repo_object:
@@ -91,29 +74,40 @@ class Repo():
             if commit_obj.is_remediation_commit():
                 self.remediations.extend(commit_obj.remediations)
 
-    def scan(self):
+    def scan(self, since_date: datetime | str = None, since_commit: str = None, output_dir: str | Path | None = None):
         if not self.git_repo_object:
             return
-        for commit in self.git_repo_object.iter_commits():
+
+        rev = "HEAD"
+        kwargs = {}
+
+        if since_commit:
+            rev = f"{since_commit}..HEAD"
+        elif since_date:
+            # If a datetime object is passed, convert it to ISO format string
+            if isinstance(since_date, datetime):
+                kwargs['since'] = since_date.isoformat()
+            else:
+                kwargs['since'] = since_date
+
+        # Unpack kwargs into iter_commits (e.g., iter_commits(since="..."))
+        for commit in self.git_repo_object.iter_commits(rev, **kwargs):
             commit_obj = Commit(commit, self)
             if 'dco' in self.checks and not commit_obj.check_dco_signoff():
                 self.write_error(commit_obj, 'dco')
 
-    @property
-    def csv_filename(self):
-        return self.__csv_filename
-
-    @csv_filename.setter
-    def csv_filename(self, csvfile):
+    def __open_csvfile(self):
         # Safely clear out any old references first
         if self.__csvfileref:
             self.__csvfileref.close()
-
+        csvfile = self.output_dir / self.csv_filename
         if os.path.isfile(csvfile):
             os.remove(csvfile)
 
         # We keep this reference open because write_error needs continuous access
         self.__csvfileref = open(csvfile, mode='w', encoding='utf-8', newline='')
+        logging.getLogger().debug(f"Creating {csvfile}")
+        logging.getLogger().debug(f"Full filename is {os.path.abspath(self.__csvfileref.name)}")
         self.__csv_writer = csv.writer(
             self.__csvfileref, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL
         )
@@ -132,10 +126,10 @@ class Repo():
         # Fallback safety net
         self.close()
 
-    def write_error(self, commit, error_type):
+    def write_error(self, commit: str, error_type: str):
         logging.getLogger().error(f"Found error '{error_type}' in commit {commit.git_commit_object.hexsha}")
         if not self.__csv_writer:
-            raise RuntimeError("CSV file has not been initialized via csv_filename setter.")
+            self.__open_csvfile()
 
         self.__csv_writer.writerow([
             self.name,
@@ -149,7 +143,6 @@ class Repo():
         ])
 
         if error_type == 'dco':
-            self.write_dco_prior_commits_file(commit)
             self.write_individual_remediation_commit(commit)
 
     def write_individual_remediation_commit(self, commit):
@@ -166,18 +159,6 @@ class Repo():
             if mode == 'w+':
                 fh.write(f"DCO Remediation Commit for {commit.git_commit_object.author.name} <{commit.git_commit_object.author.email}>\n\n")
             fh.write(f"I, {commit.git_commit_object.author.name} <{commit.git_commit_object.author.email}>, hereby add my Signed-off-by to this commit: {short_hash}\n")
-
-    def write_dco_prior_commits_file(self, commit):
-        target_dir = os.path.join(self.prior_commits_dir, self.name)
-        os.makedirs(target_dir, exist_ok=True)
-
-        commitfilename = os.path.join(target_dir, f"{commit.git_commit_object.author.name}-{self.name}.txt")
-        mode = 'a' if os.path.isfile(commitfilename) else 'w+'
-
-        with open(commitfilename, mode=mode, encoding='utf-8') as fh:
-            if mode == 'w+':
-                fh.write(f"I, {commit.git_commit_object.author.name} hereby sign-off-by all of my past commits to this repo subject to the Developer Certificate of Origin (DCO), Version 1.1. In the past I have used emails: {commit.git_commit_object.author.email}\n\n")
-            fh.write(f"{commit.git_commit_object.hexsha} {commit.git_commit_object.message}\n")
 
 
 class GitRemoteProgress(git.RemoteProgress):

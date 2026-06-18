@@ -10,6 +10,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch, MagicMock, call
 import shutil
+from pathlib import Path
 
 import git
 
@@ -90,57 +91,6 @@ class TestRepoInitLocal(unittest.TestCase):
     def test_csv_file_created(self):
         self.assertTrue(os.path.isfile(self.expected_name + ".csv"))
 
-
-class TestRepoLoadPastSignoffs(unittest.TestCase):
-
-    def setUp(self):
-        self.repo = _make_repo_github()
-
-    def tearDown(self):
-        if os.path.isfile("foo-bar.csv"):
-            os.remove("foo-bar.csv")
-
-    def test_loads_signoffs_from_directory(self):
-        blob_content = b"some signoff content"
-        mock_blob = Mock()
-
-        # write content to a real temp file so open() works
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.txt') as tf:
-            tf.write(blob_content)
-            tf_name = tf.name
-        mock_blob.abspath = tf_name
-
-        mock_tree_entry = Mock()
-        mock_tree_entry.type = 'tree'
-        mock_tree_entry.name = 'dco-signoffs'
-        mock_tree_entry.blobs = [mock_blob]
-
-        self.repo.git_repo_object = Mock()
-        self.repo.git_repo_object.head.commit.tree = [mock_tree_entry]
-
-        self.repo.load_past_signoffs()
-        self.assertEqual(self.repo.past_signoffs, [blob_content])
-        os.unlink(tf_name)
-
-    def test_skips_non_matching_directories(self):
-        self.repo.past_signoffs = []  # reset instance list; class-level list can leak between tests
-        mock_tree_entry = Mock()
-        mock_tree_entry.type = 'tree'
-        mock_tree_entry.name = 'other-dir'
-
-        self.repo.git_repo_object = Mock()
-        self.repo.git_repo_object.head.commit.tree = [mock_tree_entry]
-
-        self.repo.load_past_signoffs()
-        self.assertEqual(self.repo.past_signoffs, [])
-
-    def test_invalid_repo_returns_false(self):
-        self.repo.git_repo_object = Mock()
-        self.repo.git_repo_object.head.commit.tree.__iter__ = Mock(side_effect=ValueError)
-        result = self.repo.load_past_signoffs()
-        self.assertFalse(result)
-
-
 class TestRepoLoadRemediationCommits(unittest.TestCase):
 
     def setUp(self):
@@ -170,7 +120,6 @@ class TestRepoLoadRemediationCommits(unittest.TestCase):
         # No dco.yml config → is_remediation_commit returns False → remediations stays empty
         self.assertEqual(self.repo.remediations, [])
 
-
 class TestRepoScan(unittest.TestCase):
 
     def setUp(self):
@@ -199,7 +148,7 @@ class TestRepoScan(unittest.TestCase):
         self.repo.git_repo_object.git.rev_parse.return_value = "aabbccd"
         self.repo.past_signoffs = []
         self.repo.remediations = []
-
+        self.repo.csv_filename = "foo-bar.csv"
         self.repo.scan()
 
         # flush the still-open csv writer before reading
@@ -220,10 +169,10 @@ class TestRepoScan(unittest.TestCase):
         self.repo.git_repo_object.iter_commits.return_value = [mock_git_commit]
         self.repo.past_signoffs = []
         self.repo.remediations = []
-
+        self.repo.csv_filename = "foo-bar.csv"
         self.repo.scan()
 
-        with open("foo-bar.csv") as f:
+        with open(Path.cwd() / "foo-bar.csv") as f:
             content = f.read()
         self.assertEqual(content.strip(), "")
 
@@ -241,53 +190,6 @@ class TestRepoScan(unittest.TestCase):
         with open("foo-bar.csv") as f:
             content = f.read()
         self.assertEqual(content.strip(), "")
-
-
-class TestRepoWriteDCOPriorCommitsFile(unittest.TestCase):
-
-    def setUp(self):
-        self.tmpdir = tempfile.mkdtemp()
-        self.repo = _make_repo_github()
-        self.repo.prior_commits_dir = os.path.join(self.tmpdir, "dco-signoffs")
-        self.repo.name = "myrepo"
-
-    def tearDown(self):
-        import shutil
-        shutil.rmtree(self.tmpdir, ignore_errors=True)
-        if os.path.isfile("foo-bar.csv"):
-            os.remove("foo-bar.csv")
-
-    def _make_commit_obj(self, hexsha, message, author_name, author_email):
-        commit = Mock()
-        commit.git_commit_object.hexsha = hexsha
-        commit.git_commit_object.message = message
-        commit.git_commit_object.author.name = author_name
-        commit.git_commit_object.author.email = author_email
-        return commit
-
-    def test_creates_new_file(self):
-        commit = self._make_commit_obj("abc123", "fix bug", "Alice", "alice@example.com")
-        self.repo.write_dco_prior_commits_file(commit)
-
-        expected = os.path.join(self.repo.prior_commits_dir, "myrepo", "Alice-myrepo.txt")
-        self.assertTrue(os.path.isfile(expected))
-        with open(expected) as f:
-            content = f.read()
-        self.assertIn("Alice", content)
-        self.assertIn("abc123", content)
-
-    def test_appends_to_existing_file(self):
-        commit1 = self._make_commit_obj("abc123", "first", "Alice", "alice@example.com")
-        commit2 = self._make_commit_obj("def456", "second", "Alice", "alice@example.com")
-        self.repo.write_dco_prior_commits_file(commit1)
-        self.repo.write_dco_prior_commits_file(commit2)
-
-        expected = os.path.join(self.repo.prior_commits_dir, "myrepo", "Alice-myrepo.txt")
-        with open(expected) as f:
-            content = f.read()
-        self.assertIn("abc123", content)
-        self.assertIn("def456", content)
-
 
 class TestRepoWriteIndividualRemediationCommit(unittest.TestCase):
 
@@ -360,6 +262,11 @@ class TestRepoBranchCoverage(unittest.TestCase):
         self.assertEqual(repo.name, os.path.basename(self.test_dir))
         mock_git_repo.assert_called_once_with(self.test_dir)
 
+        # cleanup
+        test_csv_path = repo.csv_filename
+        if os.path.exists(test_csv_path):
+            os.remove(test_csv_path)
+
     @patch('git.Repo')
     def test_init_invalid_path_branch(self, mock_git_repo):
         """Fixes 69 ↛ 74: Path is neither a GitHub URL nor a valid directory."""
@@ -367,15 +274,6 @@ class TestRepoBranchCoverage(unittest.TestCase):
         repo = Repo(fake_path)
         self.assertEqual(repo.name, '')
         self.assertIsNone(repo.git_repo_object)
-
-    @patch('git.Repo')
-    def test_load_past_signoffs_defaults(self, mock_git_repo):
-        """Fixes 77 ↛ 80: Forces dco_signoffs_directories to be None."""
-        repo = Repo(self.test_dir)
-        repo.git_repo_object.head.commit.tree = []
-        # Call without arguments to hit the 'is None' branch
-        result = repo.load_past_signoffs()
-        self.assertTrue(result)
 
     @patch('git.Repo')
     def test_guard_clauses_empty_repo(self, mock_git_repo):
@@ -391,34 +289,33 @@ class TestRepoBranchCoverage(unittest.TestCase):
     def test_close_without_csv_ref(self, mock_git_repo):
         """Fixes 130 ↛ 133: close() called when __csvfileref is already None."""
         repo = Repo(self.test_dir)
+        csvfilename = repo.csv_filename
         repo.close() # First call closes it
         repo.close() # Second call forces the 'if self.__csvfileref' to be False
 
-    @patch('git.Repo')
-    def test_write_error_uninitialized_csv(self, mock_git_repo):
-        """Fixes 142 ↛ 143: Verifies RuntimeError when writing without a file setup."""
-        repo = Repo(self.test_dir)
-        # Manually destroy the internal writer object
-        repo._Repo__csv_writer = None
-
-        with self.assertRaises(RuntimeError):
-            repo.write_error(self.mock_commit_obj, 'dco')
+        if os.path.exists(csvfilename):
+            os.remove(csvfilename)
 
     @patch('git.Repo')
     @patch('contrib_check.repo.Commit')
     def test_write_error_non_dco_type(self, mock_commit_class, mock_git_repo):
         """Fixes 156 ↛ exit: Skips the write_dco_prior_commits_file branch."""
         repo = Repo(self.test_dir)
+        test_csv_path = repo.csv_filename
         output_target = os.path.join(self.test_dir, "scan_output.csv")
         repo.csv_filename = output_target
 
         # Inject custom error type that isn't 'dco'
         repo.error_types['custom'] = 'Some alternative issue'
 
-        with patch.object(repo, 'write_dco_prior_commits_file') as mock_write_priors:
+        with patch.object(repo, 'write_individual_remediation_commit') as mock_write_priors:
             repo.write_error(self.mock_commit_obj, 'custom')
             # Verify the DCO-specific file write block was bypassed
             mock_write_priors.assert_not_called()
+
+        # cleanup
+        if os.path.exists(test_csv_path):
+            os.remove(test_csv_path)
 
     @patch('git.Repo')
     @patch('contrib_check.repo.Commit')
@@ -432,9 +329,15 @@ class TestRepoBranchCoverage(unittest.TestCase):
         repo.load_remediation_commits()
         self.assertIn("remediation_alpha", repo.remediations)
 
+        # cleanup
+        test_csv_path = repo.csv_filename
+        if os.path.exists(test_csv_path):
+            os.remove(test_csv_path)
+
     @patch('git.Repo')
     def test_csv_filename_removes_existing_file(self, mock_git_repo):
         repo = Repo(self.test_dir)
+        csvfilename = repo.csv_filename
         test_csv_path = os.path.join(self.test_dir, "clashing_output.csv")
         with open(test_csv_path, 'w') as f:
             f.write("old data")
@@ -442,12 +345,6 @@ class TestRepoBranchCoverage(unittest.TestCase):
         repo.csv_filename = test_csv_path
         self.assertEqual(os.path.getsize(test_csv_path), 0)
 
-    @patch('git.Repo')
-    def test_load_past_signoffs_with_explicit_directories(self, mock_git_repo):
-        """Fixes 69 ↛ 72: Forces dco_signoffs_directories to be a provided list instead of None."""
-        repo = Repo(self.test_dir)
-        repo.git_repo_object.head.commit.tree = []
-
-        # Pass an explicit custom list to evaluate the False/skip branch condition
-        result = repo.load_past_signoffs(dco_signoffs_directories=["custom-signoffs-dir"])
-        self.assertTrue(result)
+        # cleanup
+        if os.path.exists(csvfilename):
+            os.remove(csvfilename)

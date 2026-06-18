@@ -16,10 +16,16 @@ from .repo import Repo
 
 class Org():
 
-    def __init__(self, org_name, org_type='github', ignore_repos=None, only_repos=None, skip_archived=True, load_repos=True):
-        # Properly bound mutable states to this exact instance
-        self.ignore_repos = ignore_repos if ignore_repos is not None else []
-        self.only_repos = only_repos if only_repos is not None else []
+    def __init__(self,
+            org_name: str,
+            org_type: str = 'github',
+            ignore_repos: list[str] | None = None,
+            only_repos: list[str] | None = None,
+            skip_archived: bool = True,
+            load_repos: bool = True
+            ):
+        self.ignore_repos = ignore_repos or []
+        self.only_repos = only_repos or []
         self.repos = []
 
         self.__org_name = ''
@@ -38,7 +44,7 @@ class Org():
         return self.__org_name
 
     @org_name.setter
-    def org_name(self, org_name):
+    def org_name(self, org_name: str):
         self.__org_name = re.sub(r'^http(s)*://(www\.)*github.com/', '', org_name)
 
     @property

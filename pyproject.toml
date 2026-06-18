@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "contrib-check"
-version = "0.1.0"
+version = "20260519"
 description = "Checks contributions in a repo or a GitHub org for DCO signoffs and other things."
 authors = ["John Mertic <jmertic@linuxfoundation.org>"]
 license = "Apache-2.0"

@@ -42,20 +42,12 @@ jobs:
           virtualenvs-create: true
           virtualenvs-in-project: true
 
-      - name: Load cached venv
-        id: cached-poetry-dependencies
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4.2.0
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
-
       - name: Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: poetry install --no-interaction
 
       - name: Run tests
         run: |
-          poetry run coverage run -m pytest tests.py
+          poetry run coverage run -m pytest tests/
           poetry run coverage xml
 
       - name: SonarCloud Scan

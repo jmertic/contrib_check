@@ -8,92 +8,128 @@
 # Thin layer that uses GitPython.Repo.Base but adds some metadata and the past signoffs
 #
 
+from __future__ import annotations
+
 import os
-import git
 import tempfile
 import csv
 import re
 import shutil
+import logging
+from pathlib import Path
+
+from alive_progress import alive_bar
+import git
+from git import RemoteProgress
 
 from .commit import Commit
 
 class Repo():
-    name = ''
-    html_url = ''
-    past_signoffs = []
-    git_repo_object = None
-    prior_commits_dir = 'dco-signoffs' 
+    # Class-level immutable defaults (Safe)
 
-    checks = {
-        'dco': True
-    }
-    
-    error_types = {
-        'dco': 'The commit did not have a DCO Signoff'    
-    }
+    checks = { 'dco': True }
+    error_types = { 'dco': 'The commit did not have a DCO Signoff' }
 
-    __csv_filename = 'output.csv'
-    __csv_writer = None
-    __fo = None
-    __csvfileref = None
+    def __init__(self, repo_path: str):
+        self.name = ''
+        self.html_url = ''
+        self.past_signoffs = []
+        self.remediations = []
+        self.git_repo_object = None
+        self.prior_commits_dir = 'dco-signoffs'
+        self.remediation_commits_dir = 'remediation-commits'
+        self.output_dir = Path.cwd()
+        self.csv_filename = "output.csv"
+        self.__csv_writer = None
+        self.__fo = None
+        self.__csvfileref = None
 
-    def __init__(self, repo_path):
         # Skip LFS files - we don't need to download them
-        os.environ["GIT_LFS_SKIP_SMUDGE"]="1"
-        
+        os.environ["GIT_LFS_SKIP_SMUDGE"] = "1"
+
         # if GitHub, we can find what we need
-        url_search = re.search("https://github.com/(.*)/(.*)",repo_path)
+        url_search = re.search(r"https://github\.com/(.*)/(.*)", repo_path)
         if url_search:
             self.html_url = repo_path
             self.name = url_search.group(2)
             self.__fo = tempfile.TemporaryDirectory()
-            self.git_repo_object = git.Repo.clone_from(self.html_url,self.__fo.name)
-            self.csv_filename = url_search.group(1)+'-'+self.name+'.csv'
-        # local clone    
+            print(f"Cloning repo {self.html_url}")
+            self.git_repo_object = git.Repo.clone_from(
+                self.html_url, self.__fo.name, progress=GitRemoteProgress()
+            )
+            self.csv_filename = f"{url_search.group(1)}-{self.name}.csv"
+        # local clone
         elif os.path.isdir(repo_path):
             self.name = os.path.basename(os.path.realpath(repo_path))
             self.git_repo_object = git.Repo(repo_path)
-            self.csv_filename = self.name+'.csv'
+            self.csv_filename = f"{self.name}.csv"
 
-    def loadPastSignoffs(self, dco_signoffs_directories = ["dco-signoffs"]):
-        try:
-            for entry in self.git_repo_object.head.commit.tree:
-                if entry.type == 'tree' and entry.name in dco_signoffs_directories:
-                    for blob in entry.blobs:
-                        with open(blob.abspath, 'rb') as content_file:
-                            content = content_file.read()
-                            self.past_signoffs.append(content)
-        except ValueError:
-            print("...invalid or empty repo - skipping")
-            return False
+        self.load_remediation_commits()
 
-    def scan(self):
+    def load_remediation_commits(self):
+        if not self.git_repo_object:
+            return
         for commit in self.git_repo_object.iter_commits():
-            commitObj = Commit(commit,self)
-            if 'dco' in self.checks and not commitObj.checkDCOSignoff():
-                self.writeError(commitObj,'dco')
+            commit_obj = Commit(commit, self)
+            if commit_obj.is_remediation_commit():
+                self.remediations.extend(commit_obj.remediations)
 
-    @property
-    def csv_filename(self):
-        return self.__csv_filename
+    def scan(self, since_date: datetime | str = None, since_commit: str = None):
+        if not self.git_repo_object:
+            return
 
-    @csv_filename.setter
-    def csv_filename(self,csvfile):
-        # remove file if there already
+        rev = "HEAD"
+        kwargs = {}
+
+        if since_commit:
+            rev = f"{since_commit}..HEAD"
+        elif since_date:
+            # If a datetime object is passed, convert it to ISO format string
+            if isinstance(since_date, datetime):
+                kwargs['since'] = since_date.isoformat()
+            else:
+                kwargs['since'] = since_date
+
+        # Unpack kwargs into iter_commits (e.g., iter_commits(since="..."))
+        for commit in self.git_repo_object.iter_commits(rev, **kwargs):
+            commit_obj = Commit(commit, self)
+            if 'dco' in self.checks and not commit_obj.check_dco_signoff():
+                self.write_error(commit_obj, 'dco')
+
+    def __open_csvfile(self):
+        # Safely clear out any old references first
+        if self.__csvfileref:
+            self.__csvfileref.close()
+        csvfile = self.output_dir / self.csv_filename
         if os.path.isfile(csvfile):
             os.remove(csvfile)
-        
-        self.__csvfileref = open(csvfile, mode='w') 
-        self.__csv_writer = csv.writer(self.__csvfileref, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
-        self.__csv_filename = csvfile
-    
-    def __del__(self):
+
+        # We keep this reference open because write_error needs continuous access
+        self.__csvfileref = open(csvfile, mode='w', encoding='utf-8', newline='')
+        logging.getLogger().debug(f"Creating {csvfile}")
+        logging.getLogger().debug(f"Full filename is {os.path.abspath(self.__csvfileref.name)}")
+        self.__csv_writer = csv.writer(
+            self.__csvfileref, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL
+        )
+
+    def close(self):
+        """Explicit cleanup method to ensure resources drain properly."""
+        if self.__csvfileref:
+            self.__csvfileref.close()
+            self.__csvfileref = None
         if self.__fo:
             self.__fo.cleanup()
-        if self.__csvfileref:
-            self.__csvfileref.close() 
+            self.__fo = None
 
-    def writeError(self, commit, error_type):
+    def __del__(self):
+        # Fallback safety net
+        self.close()
+
+    def write_error(self, commit: Commit, error_type: str):
+        logging.getLogger().error(f"Found error '{error_type}' in commit {commit.git_commit_object.hexsha}")
+        if not self.__csv_writer:
+            self.__open_csvfile()
+
         self.__csv_writer.writerow([
             self.name,
             commit.git_commit_object.hexsha,
@@ -103,24 +139,73 @@ class Repo():
             commit.git_commit_object.authored_datetime,
             error_type,
             self.error_types[error_type]
-            ])
-            
+        ])
+
         if error_type == 'dco':
-            self.writeDCOPriorCommitsFile(commit)
+            self.write_individual_remediation_commit(commit)
 
-    def writeDCOPriorCommitsFile(self, commit):
-        if not os.path.exists(self.prior_commits_dir):
-            os.mkdir(self.prior_commits_dir)
-        if not os.path.exists(self.prior_commits_dir+'/'+self.name):
-            os.mkdir(self.prior_commits_dir+'/'+self.name)
+    def write_individual_remediation_commit(self, commit):
+        os.makedirs(self.remediation_commits_dir, exist_ok=True)
 
-        commitfilename = self.prior_commits_dir+'/'+self.name+'/'+commit.git_commit_object.author.name+'-'+self.name+'.txt'
+        remediationfilename = os.path.join(
+            self.remediation_commits_dir, f"{self.name}-{commit.git_commit_object.author.name}.txt"
+        )
+        short_hash = self.git_repo_object.git.rev_parse(commit.git_commit_object.hexsha, short="7")
 
-        if not os.path.isfile(commitfilename):
-            fh = open(commitfilename,  mode='w+')
-            fh.write("I, "+commit.git_commit_object.author.name+" hereby sign-off-by all of my past commits to this repo subject to the Developer Certificate of Origin (DCO), Version 1.1. In the past I have used emails: "+commit.git_commit_object.author.email+"\n\n")
-        else:
-            fh = open(commitfilename,  mode='a')
+        mode = 'a' if os.path.isfile(remediationfilename) else 'w+'
 
-        fh.write(commit.git_commit_object.hexsha+" "+commit.git_commit_object.message+"\n")
-        fh.close()
+        with open(remediationfilename, mode=mode, encoding='utf-8') as fh:
+            if mode == 'w+':
+                fh.write(f"DCO Remediation Commit for {commit.git_commit_object.author.name} <{commit.git_commit_object.author.email}>\n\n")
+            fh.write(f"I, {commit.git_commit_object.author.name} <{commit.git_commit_object.author.email}>, hereby add my Signed-off-by to this commit: {short_hash}\n")
+
+
+class GitRemoteProgress(git.RemoteProgress):
+    OP_CODES = [
+        "BEGIN", "CHECKING_OUT", "COMPRESSING", "COUNTING", "END",
+        "FINDING_SOURCES", "RECEIVING", "RESOLVING", "WRITING"
+    ]
+    OP_CODE_MAP = {
+        getattr(git.RemoteProgress, _op_code): _op_code for _op_code in OP_CODES
+    }
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.alive_bar_instance = None
+        self.bar = None
+
+    @classmethod
+    def get_curr_op(cls, op_code: int) -> str:
+        op_code_masked = op_code & cls.OP_MASK
+        return cls.OP_CODE_MAP.get(op_code_masked, "?").title()
+
+    def update(
+        self,
+        op_code: int,
+        cur_count: str | float,
+        max_count: str | float | None = None,
+        message: str | None = "",
+    ) -> None:
+        cur_count = float(cur_count)
+        max_count = float(max_count) if max_count is not None else 100.0
+
+        if op_code & self.BEGIN:
+            self.curr_op = self.get_curr_op(op_code)
+            self._dispatch_bar(title=self.curr_op)
+
+        if self.bar:
+            self.bar(cur_count / max_count)
+            self.bar.text(str(message or ""))
+
+        if op_code & git.RemoteProgress.END:
+            self._destroy_bar()
+
+    def _dispatch_bar(self, title: str | None = "") -> None:
+        self.alive_bar_instance = alive_bar(manual=True, title=title)
+        self.bar = self.alive_bar_instance.__enter__()
+
+    def _destroy_bar(self) -> None:
+        if self.alive_bar_instance:
+            self.alive_bar_instance.__exit__(None, None, None)
+            self.alive_bar_instance = None
+            self.bar = None

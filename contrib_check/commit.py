@@ -8,39 +8,87 @@
 # Provides a decorator-esque pattern on the GitPython.Commit object to add the commit inspection capabilities
 
 import re
+import logging
 
+# third party modules
+import yaml
 import git
 
 class Commit():
+
     # GitPython.Commit object
     git_commit_object = None
-
     repo_object = None
     is_merge_commit = False
 
     create_prior_commits_dir = 'dco-signoffs'
-    
+
+    remediation_regex_individual = r"I,\s+(.*?)\s+<(.*?)>,\s+hereby\s+add\s+my\s+Signed-off-by\s+to\s+this\s+commit:\s+([a-f0-9]+)"
+    remediation_regex_thirdparty = r"On\s+behalf\s+of\s+(.*?)\s+<(.*?)>,\s+I,\s+(.*?)\s+<(.*?)>,\s+hereby\s+add\s+my\s+Signed-off-by\s+to\s+this\s+commit:\s+([a-f0-9]+)"
+
+    allow_remediation_commit_individual = False
+    allow_remediation_commit_thirdparty = False
+
+    remediations = []
+
     def __init__(self, git_commit_object, repo_object):
         self.git_commit_object = git_commit_object
         self.repo_object = repo_object
         self.is_merge_commit = len(git_commit_object.parents) > 1
-    
-    def checkDCOSignoff(self):
-        if self.isDCOSignOffRequired():
-            return self.hasDCOSignOff() or self.hasDCOPastSignoff()
-    
+
+        self.load_remediation_commit_config()
+
+    def check_dco_signoff(self):
+        if self.is_dco_signoff_required():
+            return self.has_dco_signoff() or self.has_dco_past_signoff() or self.has_remediation()
+
         return True
 
-    def isDCOSignOffRequired(self):
+    def is_dco_signoff_required(self):
         return not self.is_merge_commit
-    
-    def hasDCOSignOff(self):
-        return re.search("Signed-off-by: (.+)",self.git_commit_object.message)
 
-    def hasDCOPastSignoff(self):
+    def has_dco_signoff(self):
+        return (re.search("Signed-off-by: (.+)",self.git_commit_object.message) != None)
+
+    def has_dco_past_signoff(self):
         for signoff in self.repo_object.past_signoffs:
-            if re.search(self.git_commit_object.hexsha.encode(),signoff):
+            if (re.search(self.git_commit_object.hexsha.encode(),signoff) != None):
                 return True
 
-        return False;
+        return False
 
+    def has_remediation(self):
+        return self.repo_object.git_repo_object.git.rev_parse(self.git_commit_object.hexsha, short="7") in self.remediations
+
+    def load_remediation_commit_config(self):
+        try:
+            with open(self.repo_object.git_repo_object.head.commit.tree[".github/dco.yml"].abspath, 'r') as file:
+                config = yaml.safe_load(file)
+                self.allow_remediation_commit_individual = config['allowRemediationCommits']['individual'] if config and 'allowRemediationCommits' in config and 'individual' in config['allowRemediationCommits'] else False
+                self.allow_remediation_commit_thirdparty = config['allowRemediationCommits']['thirdParty'] if config and 'allowRemediationCommits' in config and 'thirdParty' in config['allowRemediationCommits'] else False
+        except KeyError:
+            return False
+        else:
+            return True
+
+    def is_remediation_commit(self):
+        is_remediation_commit = False
+
+        if self.allow_remediation_commit_individual:
+            logging.getLogger().debug(f"Looking for individual remediation commits for commit {self.git_commit_object.hexsha}")
+            for match in re.findall(self.remediation_regex_individual,self.git_commit_object.message,flags=re.I|re.M|re.DOTALL):
+                # ensure it's a valid remediation commit by matching the author with the attestation
+                if ( match[0] == self.git_commit_object.author.name ) and ( match[1] == self.git_commit_object.author.email ):
+                    logging.getLogger().debug(f"Found individual remediation commit {match[2]} in commit {self.git_commit_object.hexsha}")
+                    self.remediations.append(match[2])
+                    is_remediation_commit = True
+        if self.allow_remediation_commit_thirdparty:
+            logging.getLogger().debug(f"Looking for third party remediation commits for commit {self.git_commit_object.hexsha}")
+            for match in re.findall(self.remediation_regex_thirdparty,self.git_commit_object.message,flags=re.I|re.M|re.DOTALL):
+                # ensure it's a valid remediation commit by matching the author with the attestation
+                if ( match[2] == self.git_commit_object.author.name ) and ( match[3] == self.git_commit_object.author.email ):
+                    logging.getLogger().debug(f"Found third party remediation commit {match[4]} in commit {self.git_commit_object.hexsha}")
+                    self.remediations.append(match[4])
+                    is_remediation_commit = True
+
+        return is_remediation_commit

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "contrib-check"
-version = "0.1.0"
+version = "20260519"
 description = "Checks contributions in a repo or a GitHub org for DCO signoffs and other things."
 authors = ["John Mertic <jmertic@linuxfoundation.org>"]
 license = "Apache-2.0"
@@ -17,10 +17,18 @@ python = "^3.12"
 PyYAML = ">=6.0.1"
 GitPython = ">=3.1.50"
 PyGithub = ">=2.4.0"
+alive-progress = "^3.3.0"
 
 [tool.poetry.group.dev.dependencies]
 coverage = ">=7.14.0"
 pytest = ">=8.0.0"
+pytest-cov = "^7.1.0"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+log_file = "pytest.log"
+log_file_level = "DEBUG"
+log_auto_indent = true
 
 [tool.coverage.run]
 source = ["contrib_check"]

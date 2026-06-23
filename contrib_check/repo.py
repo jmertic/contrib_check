@@ -74,7 +74,7 @@ class Repo():
             if commit_obj.is_remediation_commit():
                 self.remediations.extend(commit_obj.remediations)
 
-    def scan(self, since_date: datetime | str = None, since_commit: str = None, output_dir: str | Path | None = None):
+    def scan(self, since_date: datetime | str = None, since_commit: str = None):
         if not self.git_repo_object:
             return
 
@@ -125,7 +125,7 @@ class Repo():
         # Fallback safety net
         self.close()
 
-    def write_error(self, commit: str, error_type: str):
+    def write_error(self, commit: Commit, error_type: str):
         logging.getLogger().error(f"Found error '{error_type}' in commit {commit.git_commit_object.hexsha}")
         if not self.__csv_writer:
             self.__open_csvfile()

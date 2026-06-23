@@ -111,7 +111,6 @@ class Repo():
         self.__csv_writer = csv.writer(
             self.__csvfileref, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL
         )
-        self.__csv_filename = csvfile
 
     def close(self):
         """Explicit cleanup method to ensure resources drain properly."""

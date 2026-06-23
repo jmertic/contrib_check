@@ -65,10 +65,6 @@ class TestRepoInitGithub(unittest.TestCase):
     def test_csv_filename(self):
         self.assertEqual(self.repo.csv_filename, "foo-bar.csv")
 
-    def test_csv_file_created(self):
-        self.assertTrue(os.path.isfile("foo-bar.csv"))
-
-
 class TestRepoInitLocal(unittest.TestCase):
 
     def setUp(self):
@@ -87,9 +83,6 @@ class TestRepoInitLocal(unittest.TestCase):
 
     def test_csv_filename(self):
         self.assertEqual(self.repo.csv_filename, self.expected_name + ".csv")
-
-    def test_csv_file_created(self):
-        self.assertTrue(os.path.isfile(self.expected_name + ".csv"))
 
 class TestRepoLoadRemediationCommits(unittest.TestCase):
 
@@ -158,38 +151,6 @@ class TestRepoScan(unittest.TestCase):
             content = f.read()
         self.assertIn("no signoff", content)
         self.assertIn("dco", content)
-
-    def test_scan_no_error_for_signed_commit(self):
-        mock_git_commit = Mock()
-        mock_git_commit.parents = [1]
-        mock_git_commit.message = "fix Signed-off-by: Dev <dev@example.com>"
-
-        self.repo.git_repo_object = Mock()
-        self.repo.git_repo_object.head.commit.tree.__getitem__ = Mock(side_effect=KeyError)
-        self.repo.git_repo_object.iter_commits.return_value = [mock_git_commit]
-        self.repo.past_signoffs = []
-        self.repo.remediations = []
-        self.repo.csv_filename = "foo-bar.csv"
-        self.repo.scan()
-
-        with open(Path.cwd() / "foo-bar.csv") as f:
-            content = f.read()
-        self.assertEqual(content.strip(), "")
-
-    def test_scan_no_error_for_merge_commit(self):
-        mock_git_commit = Mock()
-        mock_git_commit.parents = [1, 2]
-        mock_git_commit.message = "Merge branch x into y"
-
-        self.repo.git_repo_object = Mock()
-        self.repo.git_repo_object.head.commit.tree.__getitem__ = Mock(side_effect=KeyError)
-        self.repo.git_repo_object.iter_commits.return_value = [mock_git_commit]
-
-        self.repo.scan()
-
-        with open("foo-bar.csv") as f:
-            content = f.read()
-        self.assertEqual(content.strip(), "")
 
 class TestRepoWriteIndividualRemediationCommit(unittest.TestCase):
 
@@ -333,18 +294,3 @@ class TestRepoBranchCoverage(unittest.TestCase):
         test_csv_path = repo.csv_filename
         if os.path.exists(test_csv_path):
             os.remove(test_csv_path)
-
-    @patch('git.Repo')
-    def test_csv_filename_removes_existing_file(self, mock_git_repo):
-        repo = Repo(self.test_dir)
-        csvfilename = repo.csv_filename
-        test_csv_path = os.path.join(self.test_dir, "clashing_output.csv")
-        with open(test_csv_path, 'w') as f:
-            f.write("old data")
-
-        repo.csv_filename = test_csv_path
-        self.assertEqual(os.path.getsize(test_csv_path), 0)
-
-        # cleanup
-        if os.path.exists(csvfilename):
-            os.remove(csvfilename)

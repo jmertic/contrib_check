@@ -25,7 +25,7 @@ pipx install git+https://github.com/jmertic/contrib_check.git
 
 ## Usage
 
-```bash
+```
 usage: contrib-check [-h] (--repo REPO | --org ORG) [-o OUTPUT_DIR] [--org-type ORG_TYPE] [--dco-skip] [--dco-allow-individual-remediation-commits]
                      [--dco-allow-thirdparty-remediation-commits] [--dco-signoff-dirs DCO_SIGNOFF_DIRS] [--dco-start-date DCO_START_DATE]
                      [--dco-start-commit DCO_START_COMMIT] [--only-repos ONLY_REPOS | --ignore-repos IGNORE_REPOS] [--skip-archived-repos]

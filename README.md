@@ -1,5 +1,10 @@
 # Contribution Checker
 
+[![License](https://img.shields.io/github/license/jmertic/contrib_check)](LICENSE)
+[![CI](https://github.com/jmertic/contrib_check/workflows/CI/badge.svg)](https://github.com/jmertic/contrib_check/actions?query=workflow%3ACI+branch%3Amain)
+[![Quality gate status](https://sonarcloud.io/api/project_badges/measure?project=jmertic_contrib_check&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=jmertic_contrib_check)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=jmertic_contrib_check&metric=coverage)](https://sonarcloud.io/summary/new_code?id=jmertic_contrib_check)
+
 Checks contributions in a repo or a GitHub org for:
 
 - DCO signoffs ( https://developercertificate.org )

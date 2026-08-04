@@ -18,7 +18,7 @@ from contrib_check.repo import Repo
 from contrib_check.org import Org
 
 def main():
-    startTime = datetime.now()
+    start_time = datetime.now()
 
     parser = ArgumentParser(
             description="Scan a single repo or organization for various contribution checks ( such as DCO )",
@@ -92,10 +92,10 @@ def main():
     if args.repo:
         repos = [Repo(args.repo)]
 
-    for repoObj in repos:
+    for repo_obj in repos:
         if not args.dco-skip:
-            logging.getLogger().info(f"Searching repo {repoObj.name} for DCO signoffs")
-            repoObj.load_past_signoffs(args.dco-signoff-dirs)
-            repoObj.scan(since_date=args.dco-start-date,since_commit=args.dco-start-commit,output_dir=args.output_dir)
+            logging.getLogger().info(f"Searching repo {repo_obj.name} for DCO signoffs")
+            repo_obj.load_past_signoffs(args.dco-signoff-dirs)
+            repo_obj.scan(since_date=args.dco-start-date,since_commit=args.dco-start-commit,output_dir=args.output_dir)
 
-    logging.getLogger().info("This took {} seconds".format(str(datetime.now() - startTime)))
+    logging.getLogger().info("This took {} seconds".format(str(datetime.now() - start_time)))

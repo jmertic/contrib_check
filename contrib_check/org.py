@@ -54,7 +54,7 @@ class Org():
     @org_type.setter
     def org_type(self, org_type):
         if org_type == 'github' and 'GITHUB_TOKEN' not in os.environ:
-            raise Exception('Github token is not defined. Set GITHUB_TOKEN environment variable to a valid Github token')
+            raise ValueError('Github token is not defined. Set GITHUB_TOKEN environment variable to a valid Github token')
         self.__org_type = org_type
 
     def _should_skip_repo(self, gh_repo) -> bool:
@@ -93,7 +93,7 @@ class Org():
             if e.status == 502:
                 logging.getLogger().error("Server error - retrying...")
             else:
-                logging.getLogger().error(e.data)
+                logging.getLogger().exception(e.data)
         except socket.timeout:
             logging.getLogger().error("Server error - retrying...")
 

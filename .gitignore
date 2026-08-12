@@ -1,5 +1,4 @@
 # Poetry
-poetry.lock
 dist/
 .venv/
 

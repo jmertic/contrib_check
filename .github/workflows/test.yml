@@ -51,7 +51,7 @@ jobs:
           poetry run coverage xml
 
       - name: SonarCloud Scan
-        uses: SonarSource/sonarqube-scan-action@e805d875275f728fac1885b413934be6d7c63f65 # 8.4.1
+        uses: SonarSource/sonarqube-scan-action@59202af334b4ba7b5db01b701b8e79f8b3bef0f4 # 8.5.0
         continue-on-error: true # added since if it's a PR from a different user account, the credentials won't pass over
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Needed to get PR information, if any
